@@ -15,12 +15,14 @@ import {
   type BoasVindasInput,
 } from "./templates/boas-vindas"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY)
+}
 
 const FROM = process.env.RESEND_FROM ?? "Farmácia do Povo <onboarding@resend.dev>"
 
 export async function sendOrderConfirmation(data: ConfirmacaoPedidoInput) {
-  const { error } = await resend.emails.send({
+  const { error } = await getResend().emails.send({
     from: FROM,
     to: [data.to],
     subject: `Pedido ${data.numeroPedido} confirmado — Farmácia do Povo`,
@@ -31,7 +33,7 @@ export async function sendOrderConfirmation(data: ConfirmacaoPedidoInput) {
 }
 
 export async function sendAccountConfirmation(data: ConfirmacaoContaInput) {
-  const { error } = await resend.emails.send({
+  const { error } = await getResend().emails.send({
     from: FROM,
     to: [data.to],
     subject: "Confirme seu e-mail — Farmácia do Povo",
@@ -42,7 +44,7 @@ export async function sendAccountConfirmation(data: ConfirmacaoContaInput) {
 }
 
 export async function sendWelcomeEmail(data: BoasVindasInput) {
-  const { error } = await resend.emails.send({
+  const { error } = await getResend().emails.send({
     from: FROM,
     to: [data.to],
     subject: "Bem-vindo(a) à Farmácia do Povo!",
