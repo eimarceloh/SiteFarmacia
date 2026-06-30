@@ -23,7 +23,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const [nome, setNome] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<"login" | "cadastro" | "recuperar" | null>(null)
@@ -38,6 +40,12 @@ export function AuthForm({ mode }: { mode: Mode }) {
     e.preventDefault()
     setError(null)
     setLoading(true)
+
+    if (!isLogin && password !== confirmPassword) {
+      setError("As senhas não coincidem. Verifique e tente novamente.")
+      setLoading(false)
+      return
+    }
 
     const supabase = createClient()
 
@@ -226,6 +234,35 @@ export function AuthForm({ mode }: { mode: Mode }) {
             {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
           </button>
         </Field>
+
+        {!isLogin && (
+          <Field id="confirm-password" label="Confirmar senha" icon={<Lock className="size-4" />}>
+            <input
+              id="confirm-password"
+              type={showConfirmPassword ? "text" : "password"}
+              required
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              minLength={6}
+              className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-11 text-sm outline-none ring-ring focus-visible:ring-2"
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label={showConfirmPassword ? "Ocultar senha" : "Mostrar senha"}
+            >
+              {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+            {confirmPassword && password !== confirmPassword && (
+              <span className="absolute -bottom-5 left-0 text-xs text-destructive">
+                As senhas não coincidem
+              </span>
+            )}
+          </Field>
+        )}
 
         {isLogin && (
           <div className="flex justify-end">
