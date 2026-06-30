@@ -3,37 +3,32 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 export async function middleware(request: NextRequest) {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return NextResponse.next({ request })
-  }
+  try {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      return NextResponse.next({ request })
+    }
 
-  let supabaseResponse = NextResponse.next({ request })
+    let supabaseResponse = NextResponse.next({ request })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet, headers) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options),
-          )
-          if (headers) {
-            Object.entries(headers).forEach(([key, value]) =>
-              supabaseResponse.headers.set(key, value),
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+            supabaseResponse = NextResponse.next({ request })
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options),
             )
-          }
+          },
         },
       },
-    },
-  )
+    )
 
-  try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: { user } } = await (supabase.auth as any).getUser()
     const { pathname } = request.nextUrl
@@ -50,11 +45,12 @@ export async function middleware(request: NextRequest) {
       url.pathname = "/login"
       return NextResponse.redirect(url)
     }
-  } catch {
-    // se o Supabase falhar, deixa a requisição passar sem autenticação
-  }
 
-  return supabaseResponse
+    return supabaseResponse
+  } catch (err) {
+    console.error("[middleware] erro:", err)
+    return NextResponse.next({ request })
+  }
 }
 
 export const config = {
