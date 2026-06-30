@@ -78,6 +78,7 @@ function PedidosSection() {
 function DadosSection({ user }: { user: UserData }) {
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
   const [nome, setNome] = useState(user.nome)
   const [email, setEmail] = useState(user.email)
   const [telefone, setTelefone] = useState(user.telefone)
@@ -86,12 +87,21 @@ function DadosSection({ user }: { user: UserData }) {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    setErro(null)
     const supabase = createClient()
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (authUser) {
-      await supabase.from("clientes").update({ nome_completo: nome, telefone, cpf }).eq("id", authUser.id)
-    }
+    if (!authUser) { setErro("Sessão expirada. Faça login novamente."); setLoading(false); return }
+
+    const { error } = await supabase.from("clientes").upsert({
+      id: authUser.id,
+      email: authUser.email,
+      nome_completo: nome,
+      telefone,
+      cpf,
+    })
+
     setLoading(false)
+    if (error) { setErro(`Erro ao salvar: ${error.message}`); return }
     setSaved(true)
   }
 
@@ -138,7 +148,10 @@ function DadosSection({ user }: { user: UserData }) {
           />
         </div>
       </div>
-      <Button type="submit" className="mt-6" disabled={loading}>
+      {erro && (
+        <p className="mt-3 text-sm text-destructive">{erro}</p>
+      )}
+      <Button type="submit" className="mt-4" disabled={loading}>
         {loading ? "Salvando…" : "Salvar alterações"}
       </Button>
     </form>
