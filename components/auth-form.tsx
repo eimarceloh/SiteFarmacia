@@ -9,8 +9,21 @@ import { createClient } from "@/lib/supabase/client"
 import { LogoIcon } from "@/components/logo"
 import {
   Mail, Lock, User, Eye, EyeOff,
-  CheckCircle2, AlertCircle, ArrowLeft, Loader2,
+  CheckCircle2, AlertCircle, ArrowLeft, Loader2, Phone, CreditCard,
 } from "lucide-react"
+
+function maskCPF(v: string) {
+  return v.replace(/\D/g, "").slice(0, 11)
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2")
+}
+
+function maskPhone(v: string) {
+  return v.replace(/\D/g, "").slice(0, 11)
+    .replace(/(\d{2})(\d)/, "($1) $2")
+    .replace(/(\d{5})(\d{1,4})$/, "$1-$2")
+}
 
 type Mode = "login" | "cadastro"
 
@@ -21,6 +34,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const redirect = searchParams.get("redirect") ?? "/conta"
 
   const [nome, setNome] = useState("")
+  const [cpf, setCpf] = useState("")
+  const [telefone, setTelefone] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -64,7 +79,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
         email,
         password,
         options: {
-          data: { nome_completo: nome },
+          data: { nome_completo: nome, cpf, telefone },
           emailRedirectTo: `${appUrl}/auth/callback?type=signup`,
         },
       })
@@ -186,18 +201,47 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {!isLogin && (
-          <Field id="nome" label="Nome completo" icon={<User className="size-4" />}>
-            <input
-              id="nome"
-              type="text"
-              required
-              autoComplete="name"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Seu nome"
-              className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-4 text-sm outline-none ring-ring focus-visible:ring-2"
-            />
-          </Field>
+          <>
+            <Field id="nome" label="Nome completo" icon={<User className="size-4" />}>
+              <input
+                id="nome"
+                type="text"
+                required
+                autoComplete="name"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Seu nome completo"
+                className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-4 text-sm outline-none ring-ring focus-visible:ring-2"
+              />
+            </Field>
+
+            <Field id="cpf" label="CPF" icon={<CreditCard className="size-4" />}>
+              <input
+                id="cpf"
+                type="text"
+                required
+                inputMode="numeric"
+                value={cpf}
+                onChange={(e) => setCpf(maskCPF(e.target.value))}
+                placeholder="000.000.000-00"
+                className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-4 text-sm outline-none ring-ring focus-visible:ring-2"
+              />
+            </Field>
+
+            <Field id="telefone" label="Telefone" icon={<Phone className="size-4" />}>
+              <input
+                id="telefone"
+                type="tel"
+                required
+                inputMode="numeric"
+                autoComplete="tel"
+                value={telefone}
+                onChange={(e) => setTelefone(maskPhone(e.target.value))}
+                placeholder="(00) 00000-0000"
+                className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-4 text-sm outline-none ring-ring focus-visible:ring-2"
+              />
+            </Field>
+          </>
         )}
 
         <Field id="email" label="E-mail" icon={<Mail className="size-4" />}>
