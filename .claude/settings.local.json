@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(pnpm dev *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(npm --version)",
+      "Bash(npm run *)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(npm install *)",
+      "Bash(echo \"Servidor iniciado com PID: $!\")",
+      "Bash(sleep 8 && curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000 && echo \"\" && cat /tmp/nextjs-dev.log)",
+      "Read(//private/tmp/**)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(npm run dev > /tmp/nextjs-dev.log 2>&1 & *)",
+      "Bash(curl -s http://localhost:3000/_next/static/chunks/\\\\[root-of-the-server\\\\]*.css)",
+      "Bash(curl -s \"http://localhost:3000/_next/static/chunks/%5Broot-of-the-server%5D__0h91b_5._.css\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/logo.svg)",
+      "Bash(vercel --version)",
+      "Bash(sudo npm install -g vercel)",
+      "Bash(/Users/marcelohenrique/.npm-global/node_modules/.bin/vercel --version)",
+      "Bash(npx vercel *)",
+      "Bash(mkdir -p /Users/marcelohenrique/Documents/landing-page-de-farmacia/app/categoria/\\\\[slug\\\\])",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/categoria/emagrecimento)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/produtos)",
+      "Bash(mkdir -p /Users/marcelohenrique/Documents/landing-page-de-farmacia/app/produtos/\\\\[id\\\\])",
+      "Bash(npx tsc *)",
+      "Bash(mkdir -p /Users/marcelohenrique/Documents/landing-page-de-farmacia/app/conta && mkdir -p \"/Users/marcelohenrique/Documents/landing-page-de-farmacia/app/pedido/[id]/rastreio\")",
+      "WebSearch",
+      "Bash(node -e \"const u = 'https://xxxxxxxxxxxxxxxxxxxx.supabase.co'; console.log\\(u.includes\\('xxx'\\) ? 'PLACEHOLDER' : 'OK'\\)\")"
+    ],
+    "additionalDirectories": [
+      "/private/tmp",
+      "/Users/marcelohenrique/Documents/landing-page-de-farmacia/app/categoria",
+      "/Users/marcelohenrique/Documents/landing-page-de-farmacia/app/produtos",
+      "/Users/marcelohenrique/Documents/landing-page-de-farmacia/app/pedido/[id]"
+    ]
+  }
+}
