@@ -21,14 +21,16 @@ export default async function ContaPage() {
     .eq("id", user.id)
     .single()
 
+  const meta = user.user_metadata ?? {}
+
   return (
     <main className="min-h-screen bg-background">
       <SiteHeader />
       <AccountPanel
-        nome={cliente?.nome_completo ?? ""}
-        email={cliente?.email ?? user.email ?? ""}
-        telefone={cliente?.telefone ?? ""}
-        cpf={cliente?.cpf ?? ""}
+        nome={cliente?.nome_completo || meta.nome_completo || ""}
+        email={cliente?.email || user.email || ""}
+        telefone={cliente?.telefone || meta.telefone || ""}
+        cpf={cliente?.cpf || meta.cpf || ""}
       />
       <SiteFooter />
     </main>
