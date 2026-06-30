@@ -34,7 +34,8 @@ export async function middleware(request: NextRequest) {
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: { user } } = await (supabase.auth as any).getUser()
     const { pathname } = request.nextUrl
 
     if (pathname.startsWith("/conta") && !user) {
