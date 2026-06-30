@@ -14,10 +14,22 @@ export default async function ContaPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login?redirect=/conta")
+
+  const { data: cliente } = await supabase
+    .from("clientes")
+    .select("nome_completo, email, telefone, cpf")
+    .eq("id", user.id)
+    .single()
+
   return (
     <main className="min-h-screen bg-background">
       <SiteHeader />
-      <AccountPanel />
+      <AccountPanel
+        nome={cliente?.nome_completo ?? ""}
+        email={cliente?.email ?? user.email ?? ""}
+        telefone={cliente?.telefone ?? ""}
+        cpf={cliente?.cpf ?? ""}
+      />
       <SiteFooter />
     </main>
   )

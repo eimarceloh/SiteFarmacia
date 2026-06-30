@@ -12,14 +12,14 @@ import {
 
 type Section = "pedidos" | "dados" | "enderecos" | "seguranca"
 
+type UserData = { nome: string; email: string; telefone: string; cpf: string }
+
 const NAV: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "pedidos",   label: "Meus pedidos",   icon: Package },
   { id: "dados",     label: "Dados pessoais", icon: User    },
   { id: "enderecos", label: "Endereços",       icon: MapPin  },
   { id: "seguranca", label: "Segurança",       icon: Lock    },
 ]
-
-const MOCK_USER = { name: "Maria Silva", email: "maria@email.com", phone: "(11) 98765-4321", cpf: "123.456.789-00" }
 
 const MOCK_ADDRESSES = [
   { id: 1, label: "Casa", street: "Rua das Flores, 123", complement: "Apto 42", neighborhood: "Jardim Paulista", city: "São Paulo", state: "SP", cep: "01310-100", main: true },
@@ -74,8 +74,11 @@ function PedidosSection() {
 }
 
 /* ── Seção: Dados Pessoais ── */
-function DadosSection() {
+function DadosSection({ user }: { user: UserData }) {
   const [saved, setSaved] = useState(false)
+  const [nome, setNome] = useState(user.nome)
+  const [email, setEmail] = useState(user.email)
+  const [telefone, setTelefone] = useState(user.telefone)
 
   return saved ? (
     <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-10 text-center">
@@ -92,19 +95,19 @@ function DadosSection() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className="mb-1.5 block text-sm font-medium text-foreground">Nome completo</label>
-          <input defaultValue={MOCK_USER.name} className={inputClass()} />
+          <input value={nome} onChange={(e) => setNome(e.target.value)} className={inputClass()} />
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium text-foreground">E-mail</label>
-          <input type="email" defaultValue={MOCK_USER.email} className={inputClass()} />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass()} />
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium text-foreground">Telefone</label>
-          <input type="tel" defaultValue={MOCK_USER.phone} className={inputClass()} />
+          <input type="tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} className={inputClass()} />
         </div>
         <div className="sm:col-span-2">
           <label className="mb-1.5 block text-sm font-medium text-foreground">CPF</label>
-          <input defaultValue={MOCK_USER.cpf} disabled className={`${inputClass()} cursor-not-allowed opacity-60`} />
+          <input defaultValue={user.cpf} disabled className={`${inputClass()} cursor-not-allowed opacity-60`} />
           <p className="mt-1 text-xs text-muted-foreground">O CPF não pode ser alterado.</p>
         </div>
       </div>
@@ -189,13 +192,14 @@ function SegurancaSection() {
 }
 
 /* ── Painel principal ── */
-export function AccountPanel() {
+export function AccountPanel({ nome, email, telefone, cpf }: UserData) {
   const [active, setActive] = useState<Section>("pedidos")
   const activeSection = NAV.find((n) => n.id === active)!
+  const user: UserData = { nome, email, telefone, cpf }
 
   const content: Record<Section, React.ReactNode> = {
     pedidos:   <PedidosSection />,
-    dados:     <DadosSection />,
+    dados:     <DadosSection user={user} />,
     enderecos: <EnderecosSection />,
     seguranca: <SegurancaSection />,
   }
@@ -208,11 +212,11 @@ export function AccountPanel() {
         <aside className="hidden w-56 shrink-0 lg:block">
           <div className="mb-6 flex items-center gap-3">
             <span className="flex size-12 items-center justify-center rounded-full bg-primary font-heading text-lg font-extrabold text-primary-foreground">
-              {MOCK_USER.name.charAt(0)}
+              {nome ? nome.charAt(0).toUpperCase() : "?"}
             </span>
             <div className="min-w-0">
-              <p className="truncate font-semibold text-foreground">{MOCK_USER.name}</p>
-              <p className="truncate text-xs text-muted-foreground">{MOCK_USER.email}</p>
+              <p className="truncate font-semibold text-foreground">{nome || "—"}</p>
+              <p className="truncate text-xs text-muted-foreground">{email}</p>
             </div>
           </div>
 
