@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { createClient } from "@/lib/supabase/client"
 import { ORDERS, STATUS_STYLES } from "@/lib/orders"
 import { formatBRL } from "@/lib/products"
 import {
@@ -76,9 +77,23 @@ function PedidosSection() {
 /* ── Seção: Dados Pessoais ── */
 function DadosSection({ user }: { user: UserData }) {
   const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [nome, setNome] = useState(user.nome)
   const [email, setEmail] = useState(user.email)
   const [telefone, setTelefone] = useState(user.telefone)
+  const [cpf, setCpf] = useState(user.cpf)
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    const supabase = createClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (authUser) {
+      await supabase.from("clientes").update({ nome_completo: nome, telefone, cpf }).eq("id", authUser.id)
+    }
+    setLoading(false)
+    setSaved(true)
+  }
 
   return saved ? (
     <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-10 text-center">
@@ -89,10 +104,11 @@ function DadosSection({ user }: { user: UserData }) {
   ) : (
     <form
       className="rounded-2xl border border-border bg-card p-6"
-      onSubmit={(e) => { e.preventDefault(); setSaved(true) }}
+      onSubmit={handleSave}
     >
       <h2 className="mb-5 font-heading text-lg font-bold text-foreground">Dados pessoais</h2>
       <div className="grid gap-4 sm:grid-cols-2">
+
         <div className="sm:col-span-2">
           <label className="mb-1.5 block text-sm font-medium text-foreground">Nome completo</label>
           <input value={nome} onChange={(e) => setNome(e.target.value)} className={inputClass()} />
@@ -107,11 +123,24 @@ function DadosSection({ user }: { user: UserData }) {
         </div>
         <div className="sm:col-span-2">
           <label className="mb-1.5 block text-sm font-medium text-foreground">CPF</label>
-          <input defaultValue={user.cpf} disabled className={`${inputClass()} cursor-not-allowed opacity-60`} />
-          <p className="mt-1 text-xs text-muted-foreground">O CPF não pode ser alterado.</p>
+          <input
+            value={cpf}
+            onChange={(e) => {
+              const v = e.target.value.replace(/\D/g, "").slice(0, 11)
+                .replace(/(\d{3})(\d)/, "$1.$2")
+                .replace(/(\d{3})(\d)/, "$1.$2")
+                .replace(/(\d{3})(\d{1,2})$/, "$1-$2")
+              setCpf(v)
+            }}
+            placeholder="000.000.000-00"
+            inputMode="numeric"
+            className={inputClass()}
+          />
         </div>
       </div>
-      <Button type="submit" className="mt-6">Salvar alterações</Button>
+      <Button type="submit" className="mt-6" disabled={loading}>
+        {loading ? "Salvando…" : "Salvar alterações"}
+      </Button>
     </form>
   )
 }
