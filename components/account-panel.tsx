@@ -4,16 +4,39 @@ import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
-import { ORDERS, STATUS_STYLES } from "@/lib/orders"
+import { STATUS_STYLES } from "@/lib/orders"
 import { formatBRL } from "@/lib/products"
 import {
   Package, User, MapPin, Lock, LogOut, ChevronRight,
-  Eye, EyeOff, CheckCircle2,
+  Eye, EyeOff, CheckCircle2, ShoppingBag, Home,
 } from "lucide-react"
+
+type Pedido = {
+  id: string
+  numero_pedido: string
+  status: string
+  subtotal: number
+  total: number
+  criado_em: string
+  itens_pedido: { nome_produto: string; quantidade: number; preco_unitario: number }[]
+}
+
+type Endereco = {
+  id: string
+  rotulo: string
+  logradouro: string
+  numero: string
+  complemento: string | null
+  bairro: string
+  cidade: string
+  estado: string
+  cep: string
+  padrao: boolean
+}
 
 type Section = "pedidos" | "dados" | "enderecos" | "seguranca"
 
-type UserData = { nome: string; email: string; telefone: string; cpf: string }
+type UserData = { nome: string; email: string; telefone: string; cpf: string; pedidos: Pedido[]; enderecos: Endereco[] }
 
 const NAV: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "pedidos",   label: "Meus pedidos",   icon: Package },
@@ -22,54 +45,79 @@ const NAV: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "seguranca", label: "Segurança",       icon: Lock    },
 ]
 
-const MOCK_ADDRESSES = [
-  { id: 1, label: "Casa", street: "Rua das Flores, 123", complement: "Apto 42", neighborhood: "Jardim Paulista", city: "São Paulo", state: "SP", cep: "01310-100", main: true },
-  { id: 2, label: "Trabalho", street: "Av. Paulista, 1000", complement: "Sala 501", neighborhood: "Bela Vista", city: "São Paulo", state: "SP", cep: "01310-200", main: false },
-]
 
 function inputClass() {
   return "h-11 w-full rounded-lg border border-input bg-background px-4 text-sm outline-none ring-ring focus-visible:ring-2"
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  confirmado:  "Confirmado",
+  manipulacao: "Em manipulação",
+  despachado:  "Despachado",
+  transito:    "Em trânsito",
+  entregue:    "Entregue",
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })
+}
+
 /* ── Seção: Meus Pedidos ── */
-function PedidosSection() {
+function PedidosSection({ pedidos }: { pedidos: Pedido[] }) {
+  if (pedidos.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center">
+        <ShoppingBag className="size-12 text-muted-foreground/40" />
+        <p className="font-heading font-bold text-foreground">Nenhum pedido ainda</p>
+        <p className="text-sm text-muted-foreground">Quando você fizer um pedido, ele aparecerá aqui.</p>
+        <Link href="/" className="mt-1 text-sm font-semibold text-primary hover:underline">
+          Explorar produtos
+        </Link>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      {ORDERS.map((order) => (
-        <div key={order.id} className="rounded-2xl border border-border bg-card p-5">
-          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="font-heading text-sm font-bold text-foreground">{order.id}</p>
-              <p className="text-xs text-muted-foreground">{order.date}</p>
+      {pedidos.map((pedido) => {
+        const statusStyle = STATUS_STYLES[pedido.status as keyof typeof STATUS_STYLES] ?? "bg-gray-50 text-gray-700 border-gray-200"
+        const statusLabel = STATUS_LABELS[pedido.status] ?? pedido.status
+        return (
+          <div key={pedido.id} className="rounded-2xl border border-border bg-card p-5">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-heading text-sm font-bold text-foreground">{pedido.numero_pedido}</p>
+                <p className="text-xs text-muted-foreground">{formatDate(pedido.criado_em)}</p>
+              </div>
+              <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${statusStyle}`}>
+                {statusLabel}
+              </span>
             </div>
-            <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${STATUS_STYLES[order.status]}`}>
-              {order.statusLabel}
-            </span>
-          </div>
 
-          <ul className="mb-3 space-y-1">
-            {order.items.map((item, i) => (
-              <li key={i} className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">{item.quantity}x {item.name}</span>
-                <span className="font-medium text-foreground">R$ {formatBRL(item.price * item.quantity)}</span>
-              </li>
-            ))}
-          </ul>
+            <ul className="mb-3 space-y-1">
+              {pedido.itens_pedido.map((item, i) => (
+                <li key={i} className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{item.quantidade}x {item.nome_produto}</span>
+                  <span className="font-medium text-foreground">R$ {formatBRL(item.preco_unitario * item.quantidade)}</span>
+                </li>
+              ))}
+            </ul>
 
-          <div className="flex items-center justify-between border-t border-border pt-3">
-            <p className="font-heading text-sm font-extrabold text-foreground">
-              Total: R$ {formatBRL(order.total)}
-            </p>
-            <Link
-              href={`/pedido/${order.id}/rastreio`}
-              className="flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
-            >
-              Rastrear pedido
-              <ChevronRight className="size-4" />
-            </Link>
+            <div className="flex items-center justify-between border-t border-border pt-3">
+              <p className="font-heading text-sm font-extrabold text-foreground">
+                Total: R$ {formatBRL(pedido.total)}
+              </p>
+              <Link
+                href={`/pedido/${pedido.numero_pedido}/rastreio`}
+                className="flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+              >
+                Rastrear pedido
+                <ChevronRight className="size-4" />
+              </Link>
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -159,24 +207,32 @@ function DadosSection({ user }: { user: UserData }) {
 }
 
 /* ── Seção: Endereços ── */
-function EnderecosSection() {
+function EnderecosSection({ enderecos }: { enderecos: Endereco[] }) {
   return (
     <div className="flex flex-col gap-4">
-      {MOCK_ADDRESSES.map((addr) => (
-        <div key={addr.id} className="relative rounded-2xl border border-border bg-card p-5">
-          {addr.main && (
-            <span className="absolute right-4 top-4 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-              Principal
-            </span>
-          )}
-          <p className="font-semibold text-foreground">{addr.label}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {addr.street}{addr.complement ? `, ${addr.complement}` : ""}<br />
-            {addr.neighborhood} — {addr.city}/{addr.state} · CEP {addr.cep}
-          </p>
-          <button className="mt-3 text-xs font-medium text-primary hover:underline">Editar</button>
+      {enderecos.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center">
+          <Home className="size-12 text-muted-foreground/40" />
+          <p className="font-heading font-bold text-foreground">Nenhum endereço cadastrado</p>
+          <p className="text-sm text-muted-foreground">Adicione um endereço para facilitar suas compras.</p>
         </div>
-      ))}
+      ) : (
+        enderecos.map((addr) => (
+          <div key={addr.id} className="relative rounded-2xl border border-border bg-card p-5">
+            {addr.padrao && (
+              <span className="absolute right-4 top-4 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                Principal
+              </span>
+            )}
+            <p className="font-semibold text-foreground">{addr.rotulo}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {addr.logradouro}, {addr.numero}{addr.complemento ? ` — ${addr.complemento}` : ""}<br />
+              {addr.bairro} — {addr.cidade}/{addr.estado} · CEP {addr.cep}
+            </p>
+            <button className="mt-3 text-xs font-medium text-primary hover:underline">Editar</button>
+          </div>
+        ))
+      )}
       <button className="rounded-2xl border border-dashed border-border p-5 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-primary">
         + Adicionar endereço
       </button>
@@ -234,15 +290,15 @@ function SegurancaSection() {
 }
 
 /* ── Painel principal ── */
-export function AccountPanel({ nome, email, telefone, cpf }: UserData) {
+export function AccountPanel({ nome, email, telefone, cpf, pedidos, enderecos }: UserData) {
   const [active, setActive] = useState<Section>("pedidos")
   const activeSection = NAV.find((n) => n.id === active)!
-  const user: UserData = { nome, email, telefone, cpf }
+  const user: UserData = { nome, email, telefone, cpf, pedidos, enderecos }
 
   const content: Record<Section, React.ReactNode> = {
-    pedidos:   <PedidosSection />,
+    pedidos:   <PedidosSection pedidos={pedidos} />,
     dados:     <DadosSection user={user} />,
-    enderecos: <EnderecosSection />,
+    enderecos: <EnderecosSection enderecos={enderecos} />,
     seguranca: <SegurancaSection />,
   }
 

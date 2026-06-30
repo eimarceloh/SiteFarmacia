@@ -15,11 +15,23 @@ export default async function ContaPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login?redirect=/conta")
 
-  const { data: cliente } = await supabase
-    .from("clientes")
-    .select("nome_completo, email, telefone, cpf")
-    .eq("id", user.id)
-    .single()
+  const [{ data: cliente }, { data: pedidos }, { data: enderecos }] = await Promise.all([
+    supabase
+      .from("clientes")
+      .select("nome_completo, email, telefone, cpf")
+      .eq("id", user.id)
+      .single(),
+    supabase
+      .from("pedidos")
+      .select("id, numero_pedido, status, subtotal, total, criado_em, itens_pedido(nome_produto, quantidade, preco_unitario)")
+      .eq("cliente_id", user.id)
+      .order("criado_em", { ascending: false }),
+    supabase
+      .from("enderecos")
+      .select("id, rotulo, logradouro, numero, complemento, bairro, cidade, estado, cep, padrao")
+      .eq("cliente_id", user.id)
+      .order("padrao", { ascending: false }),
+  ])
 
   const meta = user.user_metadata ?? {}
 
@@ -31,6 +43,8 @@ export default async function ContaPage() {
         email={cliente?.email || user.email || ""}
         telefone={cliente?.telefone || meta.telefone || ""}
         cpf={cliente?.cpf || meta.cpf || ""}
+        pedidos={pedidos ?? []}
+        enderecos={enderecos ?? []}
       />
       <SiteFooter />
     </main>
