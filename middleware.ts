@@ -17,34 +17,40 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, headers) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options),
           )
+          if (headers) {
+            Object.entries(headers).forEach(([key, value]) =>
+              supabaseResponse.headers.set(key, value),
+            )
+          }
         },
       },
     },
   )
 
-  // IMPORTANTE: não usar getSession() aqui — getUser() valida o token no servidor
-  const { data: { user } } = await supabase.auth.getUser()
-  const { pathname } = request.nextUrl
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { pathname } = request.nextUrl
 
-  // /conta exige login
-  if (pathname.startsWith("/conta") && !user) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/login"
-    url.searchParams.set("redirect", pathname)
-    return NextResponse.redirect(url)
-  }
+    if (pathname.startsWith("/conta") && !user) {
+      const url = request.nextUrl.clone()
+      url.pathname = "/login"
+      url.searchParams.set("redirect", pathname)
+      return NextResponse.redirect(url)
+    }
 
-  // /admin exige login (verificação de perfil fica no layout server-side)
-  if (pathname.startsWith("/admin") && !user) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/login"
-    return NextResponse.redirect(url)
+    if (pathname.startsWith("/admin") && !user) {
+      const url = request.nextUrl.clone()
+      url.pathname = "/login"
+      return NextResponse.redirect(url)
+    }
+  } catch {
+    // se o Supabase falhar, deixa a requisição passar sem autenticação
   }
 
   return supabaseResponse
@@ -52,7 +58,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Roda em todas as rotas exceto assets estáticos
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 }
