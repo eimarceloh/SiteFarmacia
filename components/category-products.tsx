@@ -3,14 +3,23 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Star, ShoppingCart, PackageSearch } from "lucide-react"
-import { getProductsByCategory, formatBRL } from "@/lib/products"
+import { getProductsByCategory, formatBRL, type Product } from "@/lib/products"
 import { useCart } from "@/components/cart-provider"
 import { useInventory, displayPrice, isAvailable } from "@/components/products-inventory-provider"
 
-export function CategoryProducts({ slug, categoryTitle }: { slug: string; categoryTitle: string }) {
+export function CategoryProducts({
+  slug,
+  categoryTitle,
+  dbProducts,
+}: {
+  slug: string
+  categoryTitle: string
+  dbProducts?: Product[]
+}) {
   const { addItem } = useCart()
   const { getItem } = useInventory()
-  const products = getProductsByCategory(slug)
+
+  const products = dbProducts ?? getProductsByCategory(slug)
 
   return (
     <section className="bg-background py-16 md:py-24">
@@ -32,11 +41,14 @@ export function CategoryProducts({ slug, categoryTitle }: { slug: string; catego
         ) : (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {products.map((p) => {
-              const inv = getItem(p.id)
-              const price = displayPrice(inv)
-              const oldPrice = inv.campaignPrice ? inv.basePrice : p.oldPrice
-              const available = isAvailable(inv)
-              const discount = oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0
+              const fromDb = p.estoque !== undefined
+              const inv = fromDb ? null : getItem(p.id)
+              const price     = fromDb ? p.price    : displayPrice(inv!)
+              const oldPrice  = fromDb ? p.oldPrice : (inv!.campaignPrice ? inv!.basePrice : p.oldPrice)
+              const available = fromDb
+                ? (p.ativo !== false && p.estoque! > 0)
+                : isAvailable(inv!)
+              const discount  = oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0
 
               return (
                 <article
@@ -49,7 +61,7 @@ export function CategoryProducts({ slug, categoryTitle }: { slug: string; catego
                     </span>
                     {!available && (
                       <span className="absolute right-3 top-3 z-10 rounded-full bg-foreground/80 px-3 py-1 text-xs font-semibold text-background">
-                        {inv.stock === 0 ? "Esgotado" : "Indisponível"}
+                        Esgotado
                       </span>
                     )}
                     {discount > 0 && available && (
@@ -86,9 +98,7 @@ export function CategoryProducts({ slug, categoryTitle }: { slug: string; catego
                           </p>
                         </>
                       ) : (
-                        <p className="text-sm font-semibold text-muted-foreground">
-                          {inv.stock === 0 ? "Fora de estoque" : "Indisponível"}
-                        </p>
+                        <p className="text-sm font-semibold text-muted-foreground">Fora de estoque</p>
                       )}
                     </div>
                     <Button

@@ -92,11 +92,12 @@ export async function atualizarProduto(id: string, _: ActionResult, formData: Fo
   redirect("/admin/produtos")
 }
 
-function revalidarPublico(slug?: string) {
+function revalidarPublico(produtoSlug?: string) {
   revalidatePath("/admin/produtos")
   revalidatePath("/")
   revalidatePath("/produtos")
-  if (slug) revalidatePath(`/produtos/${slug}`, "page")
+  revalidatePath("/categoria", "layout")
+  if (produtoSlug) revalidatePath(`/produtos/${produtoSlug}`, "page")
 }
 
 export async function toggleAtivo(id: string, ativo: boolean): Promise<ActionResult> {

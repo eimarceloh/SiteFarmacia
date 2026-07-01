@@ -5,6 +5,12 @@ import { CategoryProducts } from "@/components/category-products"
 import { getCategoryBySlug, categories } from "@/lib/categories"
 import { ChevronRight } from "lucide-react"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/server"
+import { getProductsByCategory, adaptDbProduct } from "@/lib/supabase/queries/products"
+import type { Product } from "@/lib/products"
+
+export const dynamic = "force-dynamic"
+export const dynamicParams = true
 
 export function generateStaticParams() {
   return categories.map((c) => ({ slug: c.slug }))
@@ -24,6 +30,16 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
   const { slug } = await params
   const category = getCategoryBySlug(slug)
   if (!category) notFound()
+
+  let dbProducts: Product[] | undefined
+
+  try {
+    const supabase = await createClient()
+    const rows = await getProductsByCategory(supabase, slug)
+    dbProducts = rows.map(adaptDbProduct)
+  } catch {
+    // fallback para dados estáticos
+  }
 
   return (
     <main className="min-h-screen bg-background">
@@ -45,7 +61,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
         </div>
       </section>
 
-      <CategoryProducts slug={slug} categoryTitle={category.title} />
+      <CategoryProducts slug={slug} categoryTitle={category.title} dbProducts={dbProducts} />
 
       <SiteFooter />
     </main>
