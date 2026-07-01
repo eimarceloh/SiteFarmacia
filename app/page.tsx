@@ -12,6 +12,8 @@ import { createClient } from "@/lib/supabase/server"
 import { getProducts, adaptDbProduct } from "@/lib/supabase/queries/products"
 import type { Product } from "@/lib/products"
 
+export const dynamic = "force-dynamic"
+
 export default async function Page() {
   let dbProducts: Product[] | undefined
 

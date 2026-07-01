@@ -51,6 +51,8 @@ export async function criarProduto(_: ActionResult, formData: FormData): Promise
   if (error) return { error: error.message }
 
   revalidatePath("/admin/produtos")
+  revalidatePath("/")
+  revalidatePath("/produtos")
   redirect("/admin/produtos")
 }
 
@@ -84,7 +86,17 @@ export async function atualizarProduto(id: string, _: ActionResult, formData: Fo
   if (error) return { error: error.message }
 
   revalidatePath("/admin/produtos")
+  revalidatePath("/")
+  revalidatePath("/produtos")
+  revalidatePath(`/produtos/${id}`, "page")
   redirect("/admin/produtos")
+}
+
+function revalidarPublico(slug?: string) {
+  revalidatePath("/admin/produtos")
+  revalidatePath("/")
+  revalidatePath("/produtos")
+  if (slug) revalidatePath(`/produtos/${slug}`, "page")
 }
 
 export async function toggleAtivo(id: string, ativo: boolean): Promise<ActionResult> {
@@ -92,7 +104,7 @@ export async function toggleAtivo(id: string, ativo: boolean): Promise<ActionRes
   const supabase = await createClient()
   const { error } = await supabase.from("produtos").update({ ativo }).eq("id", id)
   if (error) return { error: error.message }
-  revalidatePath("/admin/produtos")
+  revalidarPublico()
   return { success: true }
 }
 
@@ -101,7 +113,7 @@ export async function atualizarEstoque(id: string, estoque: number): Promise<Act
   const supabase = await createClient()
   const { error } = await supabase.from("produtos").update({ estoque }).eq("id", id)
   if (error) return { error: error.message }
-  revalidatePath("/admin/produtos")
+  revalidarPublico()
   return { success: true }
 }
 
@@ -110,7 +122,7 @@ export async function atualizarPreco(id: string, preco_base: number): Promise<Ac
   const supabase = await createClient()
   const { error } = await supabase.from("produtos").update({ preco_base }).eq("id", id)
   if (error) return { error: error.message }
-  revalidatePath("/admin/produtos")
+  revalidarPublico()
   return { success: true }
 }
 
@@ -119,7 +131,7 @@ export async function aplicarCampanha(id: string, preco_campanha: number, label_
   const supabase = await createClient()
   const { error } = await supabase.from("produtos").update({ preco_campanha, label_campanha }).eq("id", id)
   if (error) return { error: error.message }
-  revalidatePath("/admin/produtos")
+  revalidarPublico()
   return { success: true }
 }
 
@@ -128,7 +140,7 @@ export async function removerCampanha(id: string): Promise<ActionResult> {
   const supabase = await createClient()
   const { error } = await supabase.from("produtos").update({ preco_campanha: null, label_campanha: null }).eq("id", id)
   if (error) return { error: error.message }
-  revalidatePath("/admin/produtos")
+  revalidarPublico()
   return { success: true }
 }
 
@@ -137,6 +149,6 @@ export async function excluirProduto(id: string): Promise<ActionResult> {
   const supabase = await createClient()
   const { error } = await supabase.from("produtos").delete().eq("id", id)
   if (error) return { error: error.message }
-  revalidatePath("/admin/produtos")
+  revalidarPublico()
   return { success: true }
 }

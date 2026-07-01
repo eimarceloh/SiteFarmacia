@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server"
 import { getProducts, adaptDbProduct } from "@/lib/supabase/queries/products"
 import type { Product } from "@/lib/products"
 
+export const dynamic = "force-dynamic"
+
 export const metadata = {
   title: "Todos os Produtos | Farmácia do Povo",
   description: "Explore todos os nossos produtos manipulados por categoria.",
