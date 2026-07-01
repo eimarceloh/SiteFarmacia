@@ -3,20 +3,26 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { LogoIcon } from "@/components/logo"
-import { LayoutDashboard, ShoppingBag, Package, LogOut, X } from "lucide-react"
+import { LayoutDashboard, ShoppingBag, Package, LogOut, X, Users } from "lucide-react"
 
-const NAV = [
+const NAV_BASE = [
   { href: "/admin",         label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/admin/pedidos", label: "Pedidos",     icon: ShoppingBag     },
   { href: "/admin/produtos",label: "Produtos",    icon: Package         },
+  { href: "/admin/pedidos", label: "Pedidos",     icon: ShoppingBag     },
+]
+
+const NAV_ADMIN = [
+  { href: "/admin/equipe",  label: "Equipe",      icon: Users           },
 ]
 
 export function AdminSidebar({
   open,
   onClose,
+  ehAdmin,
 }: {
   open: boolean
   onClose: () => void
+  ehAdmin?: boolean
 }) {
   const pathname = usePathname()
 
@@ -55,8 +61,8 @@ export function AdminSidebar({
 
         {/* Nav */}
         <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-          {NAV.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href
+          {[...NAV_BASE, ...(ehAdmin ? NAV_ADMIN : [])].map(({ href, label, icon: Icon }) => {
+            const active = pathname === href || (href !== "/admin" && pathname.startsWith(href))
             return (
               <Link
                 key={href}

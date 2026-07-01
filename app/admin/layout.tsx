@@ -14,9 +14,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect("/login")
 
-  // Verifica permissão via banco — sem lógica hardcoded de nomes de papéis
-  const autorizado = await usuarioTemPermissao("usuario.gerenciar")
-  if (!autorizado) redirect("/acesso-negado")
+  // estoque.ver = permissão mínima para entrar no painel (admin + atendente)
+  const [podeEntrar, ehAdmin] = await Promise.all([
+    usuarioTemPermissao("estoque.ver"),
+    usuarioTemPermissao("usuario.gerenciar"),
+  ])
 
-  return <AdminShell>{children}</AdminShell>
+  if (!podeEntrar) redirect("/acesso-negado")
+
+  return <AdminShell ehAdmin={ehAdmin}>{children}</AdminShell>
 }
