@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import type { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
+import { usuarioTemPermissao } from "@/lib/rbac/verificar"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
 import { AccountPanel } from "@/components/account-panel"
@@ -15,7 +16,7 @@ export default async function ContaPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login?redirect=/conta")
 
-  const [{ data: cliente }, { data: pedidos }, { data: enderecos }] = await Promise.all([
+  const [{ data: cliente }, { data: pedidos }, { data: enderecos }, podeAcessarAdmin] = await Promise.all([
     supabase
       .from("clientes")
       .select("nome_completo, email, telefone, cpf")
@@ -31,6 +32,7 @@ export default async function ContaPage() {
       .select("id, rotulo, logradouro, numero, complemento, bairro, cidade, estado, cep, padrao")
       .eq("cliente_id", user.id)
       .order("padrao", { ascending: false }),
+    usuarioTemPermissao("estoque.ver"),
   ])
 
   const meta = user.user_metadata ?? {}
@@ -45,6 +47,7 @@ export default async function ContaPage() {
         cpf={cliente?.cpf || meta.cpf || ""}
         pedidos={pedidos ?? []}
         enderecos={enderecos ?? []}
+        podeAcessarAdmin={podeAcessarAdmin}
       />
       <SiteFooter />
     </main>

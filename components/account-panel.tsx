@@ -8,7 +8,7 @@ import { STATUS_STYLES } from "@/lib/orders"
 import { formatBRL } from "@/lib/products"
 import {
   Package, User, MapPin, Lock, LogOut, ChevronRight,
-  Eye, EyeOff, CheckCircle2, ShoppingBag, Home,
+  Eye, EyeOff, CheckCircle2, ShoppingBag, Home, LayoutDashboard,
 } from "lucide-react"
 
 type Pedido = {
@@ -36,7 +36,7 @@ type Endereco = {
 
 type Section = "pedidos" | "dados" | "enderecos" | "seguranca"
 
-type UserData = { nome: string; email: string; telefone: string; cpf: string; pedidos: Pedido[]; enderecos: Endereco[] }
+type UserData = { nome: string; email: string; telefone: string; cpf: string; pedidos: Pedido[]; enderecos: Endereco[]; podeAcessarAdmin?: boolean }
 
 const NAV: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "pedidos",   label: "Meus pedidos",   icon: Package },
@@ -290,7 +290,7 @@ function SegurancaSection() {
 }
 
 /* ── Painel principal ── */
-export function AccountPanel({ nome, email, telefone, cpf, pedidos, enderecos }: UserData) {
+export function AccountPanel({ nome, email, telefone, cpf, pedidos, enderecos, podeAcessarAdmin }: UserData) {
   const [active, setActive] = useState<Section>("pedidos")
   const activeSection = NAV.find((n) => n.id === active)!
   const user: UserData = { nome, email, telefone, cpf, pedidos, enderecos }
@@ -333,9 +333,18 @@ export function AccountPanel({ nome, email, telefone, cpf, pedidos, enderecos }:
                 {label}
               </button>
             ))}
+            {podeAcessarAdmin && (
+              <Link
+                href="/admin"
+                className="mt-2 flex w-full items-center gap-3 rounded-lg bg-primary/10 px-3 py-2.5 text-sm font-semibold text-primary hover:bg-primary/20"
+              >
+                <LayoutDashboard className="size-4 shrink-0" />
+                Painel admin
+              </Link>
+            )}
             <Link
               href="/"
-              className="mt-4 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
+              className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
             >
               <LogOut className="size-4 shrink-0" />
               Sair
