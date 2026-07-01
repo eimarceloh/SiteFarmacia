@@ -13,7 +13,11 @@ export function ProductActions({ product }: { product: Product }) {
   const { getItem } = useInventory()
 
   const inv = getItem(product.id)
-  const available = isAvailable(inv)
+
+  // Produtos do Supabase têm estoque/ativo direto no objeto — tem prioridade sobre localStorage
+  const stock     = product.estoque  !== undefined ? product.estoque  : inv.stock
+  const isActive  = product.ativo    !== undefined ? product.ativo    : inv.isActive
+  const available = isActive && stock > 0
 
   if (!available) {
     return (
@@ -21,11 +25,11 @@ export function ProductActions({ product }: { product: Product }) {
         <div className="mb-1 flex items-center justify-center gap-2 text-muted-foreground">
           <PackageX className="size-5" />
           <span className="font-semibold text-foreground">
-            {inv.stock === 0 ? "Produto esgotado" : "Produto indisponível"}
+            {stock === 0 ? "Produto esgotado" : "Produto indisponível"}
           </span>
         </div>
         <p className="text-sm text-muted-foreground">
-          {inv.stock === 0
+          {stock === 0
             ? "Este item está temporariamente fora de estoque."
             : "Este produto não está disponível no momento."}
         </p>
@@ -33,7 +37,7 @@ export function ProductActions({ product }: { product: Product }) {
     )
   }
 
-  const maxQty = inv.stock
+  const maxQty = stock
   const inCart = items.find((i) => i.id === product.id)?.quantity ?? 0
   const canAdd = inCart + quantity <= maxQty
 

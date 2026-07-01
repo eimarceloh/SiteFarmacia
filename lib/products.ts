@@ -20,6 +20,9 @@ export type Product = {
   ingredients: string
   howToUse: string
   reviews: Review[]
+  // Campos opcionais para produtos vindos do Supabase
+  estoque?: number
+  ativo?: boolean
 }
 
 export const products: Product[] = [

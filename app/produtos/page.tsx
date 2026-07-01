@@ -1,13 +1,26 @@
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
 import { AllProducts } from "@/components/all-products"
+import { createClient } from "@/lib/supabase/server"
+import { getProducts, adaptDbProduct } from "@/lib/supabase/queries/products"
+import type { Product } from "@/lib/products"
 
 export const metadata = {
   title: "Todos os Produtos | Farmácia do Povo",
   description: "Explore todos os nossos produtos manipulados por categoria.",
 }
 
-export default function ProdutosPage() {
+export default async function ProdutosPage() {
+  let dbProducts: Product[] | undefined
+
+  try {
+    const supabase = await createClient()
+    const rows = await getProducts(supabase)
+    dbProducts = rows.map(adaptDbProduct)
+  } catch {
+    // fallback para produtos estáticos
+  }
+
   return (
     <main className="min-h-screen bg-background">
       <SiteHeader />
@@ -24,7 +37,7 @@ export default function ProdutosPage() {
           </p>
         </div>
       </section>
-      <AllProducts />
+      <AllProducts dbProducts={dbProducts} />
       <SiteFooter />
     </main>
   )

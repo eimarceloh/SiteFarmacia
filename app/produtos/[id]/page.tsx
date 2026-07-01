@@ -10,28 +10,58 @@ import { products, getProductById, formatBRL } from "@/lib/products"
 import { getCategoryBySlug } from "@/lib/categories"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/server"
+import { getProductBySlug, getProducts, adaptDbProduct } from "@/lib/supabase/queries/products"
+import type { Product } from "@/lib/products"
 
 export function generateStaticParams() {
   return products.map((p) => ({ id: p.id }))
 }
 
+export const dynamicParams = true
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  // tenta Supabase primeiro
+  try {
+    const supabase = await createClient()
+    const row = await getProductBySlug(supabase, id)
+    if (row) {
+      const p = adaptDbProduct(row)
+      return { title: `${p.name} | Farmácia do Povo`, description: p.description }
+    }
+  } catch { /* fallback abaixo */ }
   const product = getProductById(id)
   if (!product) return {}
-  return {
-    title: `${product.name} | Farmácia do Povo`,
-    description: product.description,
-  }
+  return { title: `${product.name} | Farmácia do Povo`, description: product.description }
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const product = getProductById(id)
-  if (!product) notFound()
+
+  let product: Product | undefined
+  let allDbProducts: Product[] = []
+
+  try {
+    const supabase = await createClient()
+    const [row, allRows] = await Promise.all([
+      getProductBySlug(supabase, id),
+      getProducts(supabase),
+    ])
+    if (row) product = adaptDbProduct(row)
+    allDbProducts = allRows.map(adaptDbProduct)
+  } catch { /* fallback abaixo */ }
+
+  // Fallback para dados estáticos
+  if (!product) {
+    const staticProduct = getProductById(id)
+    if (!staticProduct) notFound()
+    product = staticProduct
+  }
 
   const category = getCategoryBySlug(product.categorySlug)
-  const related = products.filter((p) => p.categorySlug === product.categorySlug && p.id !== product.id)
+  const sourceList = allDbProducts.length > 0 ? allDbProducts : products
+  const related = sourceList.filter((p) => p.categorySlug === product!.categorySlug && p.id !== product!.id)
 
   return (
     <main className="min-h-screen bg-background">
@@ -79,7 +109,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                 {[1, 2, 3, 4, 5].map((star) => (
                   <Star
                     key={star}
-                    className={`size-4 ${parseFloat(product.rating) >= star ? "fill-primary text-primary" : "fill-muted text-muted"}`}
+                    className={`size-4 ${parseFloat(product!.rating) >= star ? "fill-primary text-primary" : "fill-muted text-muted"}`}
                     aria-hidden="true"
                   />
                 ))}

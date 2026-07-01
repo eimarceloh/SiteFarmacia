@@ -4,13 +4,16 @@ import Link from "next/link"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Star, ShoppingCart } from "lucide-react"
-import { products, formatBRL } from "@/lib/products"
+import { products as staticProducts, formatBRL, type Product } from "@/lib/products"
 import { useCart } from "@/components/cart-provider"
 import { useInventory, displayPrice, isAvailable } from "@/components/products-inventory-provider"
 
-export function FeaturedProducts() {
+export function FeaturedProducts({ dbProducts }: { dbProducts?: Product[] }) {
   const { addItem } = useCart()
   const { getItem } = useInventory()
+
+  // Prefere produtos do Supabase; usa os 4 primeiros estáticos como fallback
+  const lista = dbProducts ?? staticProducts.slice(0, 4)
 
   return (
     <section id="produtos" className="bg-secondary py-16 md:py-24">
@@ -30,12 +33,16 @@ export function FeaturedProducts() {
         </div>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {products.map((p) => {
-            const inv = getItem(p.id)
-            const price = displayPrice(inv)
-            const oldPrice = inv.campaignPrice ? inv.basePrice : p.oldPrice
-            const available = isAvailable(inv)
-            const discount = oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0
+          {lista.slice(0, 4).map((p) => {
+            // Produto do Supabase: usa estoque/ativo diretamente
+            const fromDb = p.estoque !== undefined
+            const inv = fromDb ? null : getItem(p.id)
+            const price     = fromDb ? p.price      : displayPrice(inv!)
+            const oldPrice  = fromDb ? p.oldPrice   : (inv!.campaignPrice ? inv!.basePrice : p.oldPrice)
+            const available = fromDb
+              ? (p.ativo !== false && p.estoque! > 0)
+              : isAvailable(inv!)
+            const discount  = oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0
 
             return (
               <article
@@ -48,7 +55,7 @@ export function FeaturedProducts() {
                   </span>
                   {!available && (
                     <span className="absolute right-3 top-3 z-10 rounded-full bg-foreground/80 px-3 py-1 text-xs font-semibold text-background">
-                      {inv.stock === 0 ? "Esgotado" : "Indisponível"}
+                      Esgotado
                     </span>
                   )}
                   {discount > 0 && available && (
@@ -83,9 +90,7 @@ export function FeaturedProducts() {
                         </p>
                       </>
                     ) : (
-                      <p className="text-sm font-semibold text-muted-foreground">
-                        {inv.stock === 0 ? "Fora de estoque" : "Indisponível"}
-                      </p>
+                      <p className="text-sm font-semibold text-muted-foreground">Fora de estoque</p>
                     )}
                   </div>
                   <Button

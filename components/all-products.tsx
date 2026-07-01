@@ -4,20 +4,30 @@ import { useState } from "react"
 import Link from "next/link"
 import { ShoppingCart, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { products, formatBRL } from "@/lib/products"
-import { categories } from "@/lib/categories"
+import { products as staticProducts, formatBRL, type Product } from "@/lib/products"
+import { categories as staticCategories } from "@/lib/categories"
 import { useCart } from "@/components/cart-provider"
 import { useInventory, displayPrice, isAvailable } from "@/components/products-inventory-provider"
 
 const ALL_SLUG = "todos"
 
-export function AllProducts() {
+export function AllProducts({ dbProducts }: { dbProducts?: Product[] }) {
   const { addItem } = useCart()
   const { getItem } = useInventory()
   const [active, setActive] = useState(ALL_SLUG)
 
+  // Usa produtos do Supabase quando disponíveis; static como fallback
+  const allProducts = dbProducts ?? staticProducts
+
+  // Deriva as categorias presentes nos produtos (sem depender de lib/categories quando há dados do DB)
+  const catSlugs = [...new Set(allProducts.map((p) => p.categorySlug).filter(Boolean))]
+  const cats = catSlugs.map((slug) => {
+    const fromStatic = staticCategories.find((c) => c.slug === slug)
+    return { slug, title: fromStatic?.title ?? slug }
+  })
+
   const filtered =
-    active === ALL_SLUG ? products : products.filter((p) => p.categorySlug === active)
+    active === ALL_SLUG ? allProducts : allProducts.filter((p) => p.categorySlug === active)
 
   return (
     <section className="bg-background py-12 md:py-16">
@@ -33,10 +43,10 @@ export function AllProducts() {
                 : "border-border bg-card text-foreground hover:border-primary hover:text-primary"
             }`}
           >
-            Todos ({products.length})
+            Todos ({allProducts.length})
           </button>
-          {categories.map((cat) => {
-            const count = products.filter((p) => p.categorySlug === cat.slug).length
+          {cats.map((cat) => {
+            const count = allProducts.filter((p) => p.categorySlug === cat.slug).length
             return (
               <button
                 key={cat.slug}
@@ -59,7 +69,7 @@ export function AllProducts() {
           {filtered.length === 1 ? "produto" : "produtos"}
           {active !== ALL_SLUG && (
             <> em <span className="font-semibold text-primary">
-              {categories.find((c) => c.slug === active)?.title}
+              {cats.find((c) => c.slug === active)?.title}
             </span></>
           )}
         </p>
@@ -67,11 +77,14 @@ export function AllProducts() {
         {/* Grid */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {filtered.map((p) => {
-            const inv = getItem(p.id)
-            const price = displayPrice(inv)
-            const oldPrice = inv.campaignPrice ? inv.basePrice : p.oldPrice
-            const available = isAvailable(inv)
-            const discount = oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0
+            const fromDb = p.estoque !== undefined
+            const inv = fromDb ? null : getItem(p.id)
+            const price     = fromDb ? p.price    : displayPrice(inv!)
+            const oldPrice  = fromDb ? p.oldPrice : (inv!.campaignPrice ? inv!.basePrice : p.oldPrice)
+            const available = fromDb
+              ? (p.ativo !== false && p.estoque! > 0)
+              : isAvailable(inv!)
+            const discount  = oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0
 
             return (
               <article
@@ -84,7 +97,7 @@ export function AllProducts() {
                   </span>
                   {!available && (
                     <span className="absolute right-3 top-3 z-10 rounded-full bg-foreground/80 px-3 py-1 text-xs font-semibold text-background">
-                      {inv.stock === 0 ? "Esgotado" : "Indisponível"}
+                      Esgotado
                     </span>
                   )}
                   {discount > 0 && available && (
@@ -121,9 +134,7 @@ export function AllProducts() {
                         </p>
                       </>
                     ) : (
-                      <p className="text-sm font-semibold text-muted-foreground">
-                        {inv.stock === 0 ? "Fora de estoque" : "Indisponível"}
-                      </p>
+                      <p className="text-sm font-semibold text-muted-foreground">Fora de estoque</p>
                     )}
                   </div>
                   <Button
