@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
+import type { Provider } from "@supabase/supabase-js"
 import { LogoIcon } from "@/components/logo"
 import {
   Mail, Lock, User, Eye, EyeOff,
@@ -27,6 +28,15 @@ function maskPhone(v: string) {
 
 type Mode = "login" | "cadastro"
 
+type OAuthProvider = "google" | "microsoft" | "apple"
+
+// Mapeia o provedor exibido → identificador do Supabase Auth
+const OAUTH_MAP: Record<OAuthProvider, Provider> = {
+  google:    "google",
+  microsoft: "azure",
+  apple:     "apple",
+}
+
 export function AuthForm({ mode }: { mode: Mode }) {
   const isLogin = mode === "login"
   const router = useRouter()
@@ -44,6 +54,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<"login" | "cadastro" | "recuperar" | null>(null)
+  const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null)
 
   // Modo esqueci a senha
   const [forgotMode, setForgotMode] = useState(false)
@@ -90,6 +101,27 @@ export function AuthForm({ mode }: { mode: Mode }) {
       }
       setSuccess("cadastro")
     }
+  }
+
+  async function handleOAuth(provider: OAuthProvider) {
+    setError(null)
+    setOauthLoading(provider)
+
+    const supabase = createClient()
+    const appUrl = window.location.origin
+    const { error: err } = await supabase.auth.signInWithOAuth({
+      provider: OAUTH_MAP[provider],
+      options: {
+        redirectTo: `${appUrl}/auth/callback?next=${encodeURIComponent(redirect)}`,
+      },
+    })
+
+    // Se deu erro, o navegador não redirecionou — mostra a mensagem
+    if (err) {
+      setOauthLoading(null)
+      setError(translateError(err.message))
+    }
+    // Sucesso: o navegador é redirecionado ao provedor, não há o que fazer aqui.
   }
 
   async function handleForgotPassword(e: React.FormEvent) {
@@ -197,6 +229,37 @@ export function AuthForm({ mode }: { mode: Mode }) {
             ? "Entre para acompanhar seus pedidos e fórmulas."
             : "Cadastre-se para comprar com mais agilidade."}
         </p>
+      </div>
+
+      {/* ── Login social ── */}
+      <div className="flex flex-col gap-2.5">
+        <SocialButton
+          label="Continuar com Google"
+          icon={<GoogleIcon />}
+          loading={oauthLoading === "google"}
+          disabled={oauthLoading !== null}
+          onClick={() => handleOAuth("google")}
+        />
+        <SocialButton
+          label="Continuar com Microsoft"
+          icon={<MicrosoftIcon />}
+          loading={oauthLoading === "microsoft"}
+          disabled={oauthLoading !== null}
+          onClick={() => handleOAuth("microsoft")}
+        />
+        <SocialButton
+          label="Continuar com Apple"
+          icon={<AppleIcon />}
+          loading={oauthLoading === "apple"}
+          disabled={oauthLoading !== null}
+          onClick={() => handleOAuth("apple")}
+        />
+      </div>
+
+      <div className="my-5 flex items-center gap-3">
+        <span className="h-px flex-1 bg-border" />
+        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">ou com e-mail</span>
+        <span className="h-px flex-1 bg-border" />
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -403,6 +466,61 @@ function translateError(msg: string): string {
     return "Erro de conexão com o servidor. Verifique se o Supabase está configurado corretamente no .env.local."
   }
   return `Ocorreu um erro inesperado: ${msg}`
+}
+
+// ── Botão de login social ────────────────────────────────────────────────────
+
+function SocialButton({
+  label, icon, loading, disabled, onClick,
+}: {
+  label: string
+  icon: React.ReactNode
+  loading: boolean
+  disabled: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex h-11 w-full items-center justify-center gap-2.5 rounded-lg border border-input bg-background text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {loading ? <Loader2 className="size-4 animate-spin" /> : icon}
+      {label}
+    </button>
+  )
+}
+
+// Ícones de marca (SVG inline — lucide não traz logos oficiais)
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z" />
+      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18Z" />
+      <path fill="#FBBC05" d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.96H.96a9 9 0 0 0 0 8.08l3.02-2.32Z" />
+      <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.96l3.02 2.32C4.68 5.16 6.66 3.58 9 3.58Z" />
+    </svg>
+  )
+}
+
+function MicrosoftIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+      <path fill="#F25022" d="M1 1h7.6v7.6H1z" />
+      <path fill="#7FBA00" d="M9.4 1H17v7.6H9.4z" />
+      <path fill="#00A4EF" d="M1 9.4h7.6V17H1z" />
+      <path fill="#FFB900" d="M9.4 9.4H17V17H9.4z" />
+    </svg>
+  )
+}
+
+function AppleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M16.36 12.9c-.02-2.03 1.66-3 1.74-3.05-.95-1.39-2.42-1.58-2.95-1.6-1.25-.13-2.45.74-3.09.74-.63 0-1.62-.72-2.66-.7-1.37.02-2.63.8-3.34 2.02-1.42 2.47-.36 6.12 1.02 8.13.67.98 1.48 2.09 2.53 2.05 1.01-.04 1.4-.66 2.62-.66 1.22 0 1.57.66 2.65.64 1.09-.02 1.79-1 2.46-1.99.77-1.14 1.09-2.24 1.11-2.3-.02-.01-2.13-.82-2.16-3.25ZM14.33 6.9c.56-.68.94-1.62.84-2.56-.81.03-1.79.54-2.37 1.21-.52.6-.97 1.56-.85 2.48.9.07 1.82-.46 2.38-1.13Z" />
+    </svg>
+  )
 }
 
 // ── Field helper ─────────────────────────────────────────────────────────────
