@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { formatBRL } from "@/lib/products"
 import {
   User, Mail, Phone, MapPin, CreditCard, Lock,
-  Minus, Plus, Trash2, ChevronRight, ShoppingBag,
+  Minus, Plus, Trash2, ChevronRight, ShoppingBag, Check, Loader2,
 } from "lucide-react"
 
 const FREE_SHIPPING_THRESHOLD = 199
@@ -22,17 +22,198 @@ export type CheckoutInitial = {
   email: string
   telefone: string
   cpf: string
+}
+
+export type SavedAddress = {
+  id: string
+  rotulo: string
   cep: string
   logradouro: string
   numero: string
-  complemento: string
+  complemento: string | null
   bairro: string
   cidade: string
   estado: string
+  padrao: boolean
 }
 
 function maskCep(v: string) {
   return v.replace(/\D/g, "").slice(0, 8).replace(/(\d{5})(\d)/, "$1-$2")
+}
+
+/* ── Seletor de endereço (estilo Mercado Livre) ── */
+function AddressPicker({ addresses }: { addresses: SavedAddress[] }) {
+  const hasSaved = addresses.length > 0
+  const defaultId = addresses.find((a) => a.padrao)?.id ?? addresses[0]?.id ?? "new"
+  const [selected, setSelected] = useState<string>(hasSaved ? defaultId : "new")
+
+  const chosen = addresses.find((a) => a.id === selected)
+  const showForm = selected === "new"
+
+  // Campos do "novo endereço" (com autopreenchimento por CEP)
+  const [form, setForm] = useState({
+    cep: "", logradouro: "", numero: "", complemento: "", bairro: "", cidade: "", estado: "",
+  })
+  const [cepLoading, setCepLoading] = useState(false)
+  const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }))
+
+  async function buscarCep(cepRaw: string) {
+    const cep = cepRaw.replace(/\D/g, "")
+    if (cep.length !== 8) return
+    setCepLoading(true)
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      const data = await res.json()
+      if (!data.erro) {
+        set({
+          logradouro: data.logradouro || form.logradouro,
+          bairro:     data.bairro     || form.bairro,
+          cidade:     data.localidade  || form.cidade,
+          estado:     data.uf          || form.estado,
+        })
+      }
+    } catch {
+      // sem conexão com ViaCEP — preenchimento manual
+    } finally {
+      setCepLoading(false)
+    }
+  }
+
+  const field = (hasIcon = false) =>
+    `h-11 w-full rounded-lg border border-input bg-background ${hasIcon ? "pl-10" : "pl-4"} pr-4 text-sm outline-none ring-ring focus-visible:ring-2`
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-6">
+      <h2 className="mb-5 font-heading text-lg font-bold text-foreground">Endereço de entrega</h2>
+
+      {hasSaved && (
+        <div className="mb-5 flex flex-col gap-3">
+          {addresses.map((a) => {
+            const active = selected === a.id
+            return (
+              <label
+                key={a.id}
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors ${
+                  active ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                }`}
+              >
+                <input
+                  type="radio" name="__addr_choice" checked={active}
+                  onChange={() => setSelected(a.id)}
+                  className="mt-1 size-4 accent-[var(--primary)]"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-foreground">{a.rotulo}</span>
+                    {a.padrao && (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Principal</span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {a.logradouro}, {a.numero}{a.complemento ? ` — ${a.complemento}` : ""} · {a.bairro}, {a.cidade}/{a.estado} · CEP {maskCep(a.cep)}
+                  </p>
+                </div>
+                {active && <Check className="mt-0.5 size-5 shrink-0 text-primary" />}
+              </label>
+            )
+          })}
+
+          <label
+            className={`flex cursor-pointer items-center gap-3 rounded-xl border border-dashed p-4 text-sm font-semibold transition-colors ${
+              showForm ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary hover:text-primary"
+            }`}
+          >
+            <input
+              type="radio" name="__addr_choice" checked={showForm}
+              onChange={() => setSelected("new")}
+              className="size-4 accent-[var(--primary)]"
+            />
+            <Plus className="size-4" /> Usar outro endereço
+          </label>
+        </div>
+      )}
+
+      {/* Endereço escolhido salvo → envia via inputs ocultos */}
+      {chosen && !showForm && (
+        <>
+          <input type="hidden" name="cep" value={chosen.cep} />
+          <input type="hidden" name="logradouro" value={chosen.logradouro} />
+          <input type="hidden" name="numero" value={chosen.numero} />
+          <input type="hidden" name="complemento" value={chosen.complemento ?? ""} />
+          <input type="hidden" name="bairro" value={chosen.bairro} />
+          <input type="hidden" name="cidade" value={chosen.cidade} />
+          <input type="hidden" name="estado" value={chosen.estado} />
+        </>
+      )}
+
+      {/* Novo endereço → formulário editável */}
+      {showForm && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field id="cep" label="CEP" icon={<MapPin className="size-4" />}>
+            <div className="relative w-full">
+              <input
+                id="cep" name="cep" type="text" required
+                value={form.cep}
+                onChange={(e) => set({ cep: maskCep(e.target.value) })}
+                onBlur={(e) => buscarCep(e.target.value)}
+                placeholder="00000-000" maxLength={9}
+                className={field(true)}
+              />
+              {cepLoading && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
+            </div>
+          </Field>
+          <div className="sm:col-span-2">
+            <Field id="logradouro" label="Rua / Avenida">
+              <input
+                id="logradouro" name="logradouro" type="text" required autoComplete="address-line1"
+                value={form.logradouro} onChange={(e) => set({ logradouro: e.target.value })}
+                placeholder="Nome da rua" className={field()}
+              />
+            </Field>
+          </div>
+          <Field id="numero" label="Número">
+            <input
+              id="numero" name="numero" type="text" required
+              value={form.numero} onChange={(e) => set({ numero: e.target.value })}
+              placeholder="123" className={field()}
+            />
+          </Field>
+          <Field id="complemento" label="Complemento (opcional)">
+            <input
+              id="complemento" name="complemento" type="text"
+              value={form.complemento} onChange={(e) => set({ complemento: e.target.value })}
+              placeholder="Apto, bloco..." className={field()}
+            />
+          </Field>
+          <Field id="bairro" label="Bairro">
+            <input
+              id="bairro" name="bairro" type="text" required
+              value={form.bairro} onChange={(e) => set({ bairro: e.target.value })}
+              placeholder="Seu bairro" className={field()}
+            />
+          </Field>
+          <Field id="cidade" label="Cidade">
+            <input
+              id="cidade" name="cidade" type="text" required autoComplete="address-level2"
+              value={form.cidade} onChange={(e) => set({ cidade: e.target.value })}
+              placeholder="Sua cidade" className={field()}
+            />
+          </Field>
+          <div>
+            <label htmlFor="estado" className="mb-1.5 block text-sm font-medium text-foreground">Estado</label>
+            <select
+              id="estado" name="estado" required
+              value={form.estado} onChange={(e) => set({ estado: e.target.value })}
+              className="h-11 w-full rounded-lg border border-input bg-background px-4 text-sm outline-none ring-ring focus-visible:ring-2"
+            >
+              <option value="">Selecione</option>
+              {ESTADOS.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+            </select>
+          </div>
+        </div>
+      )}
+    </section>
+  )
 }
 
 const ESTADOS = [
@@ -63,7 +244,7 @@ function Field({
 const inputClass = (hasIcon = true) =>
   `h-11 w-full rounded-lg border border-input bg-background ${hasIcon ? "pl-10" : "pl-4"} pr-4 text-sm outline-none ring-ring focus-visible:ring-2`
 
-export function CheckoutForm({ initial }: { initial?: CheckoutInitial }) {
+export function CheckoutForm({ initial, addresses = [] }: { initial?: CheckoutInitial; addresses?: SavedAddress[] }) {
   const router = useRouter()
   const { items, totalPrice, updateQuantity, removeItem, clearCart } = useCart()
   const { deductStock } = useInventory()
@@ -198,75 +379,7 @@ export function CheckoutForm({ initial }: { initial?: CheckoutInitial }) {
           </section>
 
           {/* Endereço */}
-          <section className="rounded-2xl border border-border bg-card p-6">
-            <h2 className="mb-5 font-heading text-lg font-bold text-foreground">Endereço de entrega</h2>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field id="cep" label="CEP" icon={<MapPin className="size-4" />}>
-                <input
-                  id="cep" name="cep" type="text" required
-                  defaultValue={initial?.cep ? maskCep(initial.cep) : undefined}
-                  placeholder="00000-000"
-                  maxLength={9}
-                  className={inputClass()}
-                />
-              </Field>
-              <div className="sm:col-span-2">
-                <Field id="logradouro" label="Rua / Avenida">
-                  <input
-                    id="logradouro" name="logradouro" type="text" required autoComplete="address-line1"
-                    defaultValue={initial?.logradouro}
-                    placeholder="Nome da rua"
-                    className={inputClass(false)}
-                  />
-                </Field>
-              </div>
-              <Field id="numero" label="Número">
-                <input
-                  id="numero" name="numero" type="text" required
-                  defaultValue={initial?.numero}
-                  placeholder="123"
-                  className={inputClass(false)}
-                />
-              </Field>
-              <Field id="complemento" label="Complemento (opcional)">
-                <input
-                  id="complemento" name="complemento" type="text"
-                  defaultValue={initial?.complemento}
-                  placeholder="Apto, bloco..."
-                  className={inputClass(false)}
-                />
-              </Field>
-              <Field id="bairro" label="Bairro">
-                <input
-                  id="bairro" name="bairro" type="text" required
-                  defaultValue={initial?.bairro}
-                  placeholder="Seu bairro"
-                  className={inputClass(false)}
-                />
-              </Field>
-              <Field id="cidade" label="Cidade">
-                <input
-                  id="cidade" name="cidade" type="text" required autoComplete="address-level2"
-                  defaultValue={initial?.cidade}
-                  placeholder="Sua cidade"
-                  className={inputClass(false)}
-                />
-              </Field>
-              <div>
-                <label htmlFor="estado" className="mb-1.5 block text-sm font-medium text-foreground">
-                  Estado
-                </label>
-                <select
-                  id="estado" name="estado" required
-                  defaultValue={initial?.estado || ""}
-                  className="h-11 w-full rounded-lg border border-input bg-background px-4 text-sm outline-none ring-ring focus-visible:ring-2"
-                >
-                  <option value="">Selecione</option>
-                  {ESTADOS.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
-                </select>
-              </div>
-            </div>
-          </section>
+          <AddressPicker addresses={addresses} />
 
           {/* Pagamento */}
           <section className="rounded-2xl border border-border bg-card p-6">
