@@ -14,6 +14,11 @@ import {
   gerarTextoBoasVindas,
   type BoasVindasInput,
 } from "./templates/boas-vindas"
+import {
+  gerarHtmlAtualizacaoPedido,
+  gerarTextoAtualizacaoPedido,
+  type AtualizacaoPedidoInput,
+} from "./templates/atualizacao-pedido"
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY)
@@ -41,6 +46,22 @@ export async function sendAccountConfirmation(data: ConfirmacaoContaInput) {
     text: gerarTextoConfirmacaoConta(data),
   })
   if (error) console.error("[Resend] Erro ao enviar e-mail de confirmação de conta:", error)
+}
+
+export async function sendOrderStatusUpdate(data: AtualizacaoPedidoInput) {
+  const assunto =
+    data.variante === "aprovado"
+      ? `Pedido ${data.numeroPedido} aprovado — Farmácia do Povo`
+      : `Pedido ${data.numeroPedido} enviado — Farmácia do Povo`
+
+  const { error } = await getResend().emails.send({
+    from: FROM,
+    to: [data.to],
+    subject: assunto,
+    html: gerarHtmlAtualizacaoPedido(data),
+    text: gerarTextoAtualizacaoPedido(data),
+  })
+  if (error) console.error("[Resend] Erro ao enviar e-mail de atualização de pedido:", error)
 }
 
 export async function sendWelcomeEmail(data: BoasVindasInput) {

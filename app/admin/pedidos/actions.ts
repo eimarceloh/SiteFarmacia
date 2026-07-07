@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { usuarioTemPermissao } from "@/lib/rbac/verificar"
 import { mudarStatusPedido } from "@/lib/supabase/queries/orders"
+import { sendOrderStatusUpdate } from "@/lib/email"
 import {
   proximaEtapa, permissaoParaAvancar, indexEtapa, transicaoValida,
   STAGE_INFO, ROTULOS_STATUS, PIPELINE_STAGES, type PipelineStage,
@@ -30,6 +31,39 @@ function revalidar(pedidoId: string) {
 async function statusAtual(pedidoId: string): Promise<string | null> {
   const { data } = await supabaseAdmin.from("pedidos").select("status").eq("id", pedidoId).single()
   return (data as { status: string } | null)?.status ?? null
+}
+
+// Notifica o cliente por e-mail nos marcos: aprovado (→ manipulação) e enviado (→ despachado).
+// Nunca lança — falha de e-mail não pode travar a mudança de status.
+async function notificarCliente(pedidoId: string, novoStatus: string) {
+  const variante = novoStatus === "manipulacao" ? "aprovado"
+    : novoStatus === "despachado" ? "enviado"
+    : null
+  if (!variante) return
+
+  try {
+    const { data } = await supabaseAdmin
+      .from("pedidos")
+      .select("numero_pedido, nome_cliente, email_cliente, codigo_rastreio")
+      .eq("id", pedidoId)
+      .single()
+    const p = data as {
+      numero_pedido: string; nome_cliente: string; email_cliente: string; codigo_rastreio: string | null
+    } | null
+    if (!p?.email_cliente) return
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    await sendOrderStatusUpdate({
+      to: p.email_cliente,
+      nome: p.nome_cliente,
+      numeroPedido: p.numero_pedido,
+      variante,
+      urlAcompanhamento: appUrl ? `${appUrl}/conta` : undefined,
+      codigoRastreio: variante === "enviado" ? p.codigo_rastreio : null,
+    })
+  } catch (e) {
+    console.error("[notificarCliente] falha ao enviar e-mail:", e)
+  }
 }
 
 // ── Avançar 1 etapa na esteira (validado + registra executor) ─────────────────
@@ -67,6 +101,7 @@ export async function avancarPipeline(pedidoId: string, observacao?: string): Pr
     return { error: e instanceof Error ? e.message : "Erro ao avançar etapa." }
   }
 
+  await notificarCliente(pedidoId, proxima)
   revalidar(pedidoId)
   return { success: true }
 }
@@ -153,6 +188,7 @@ export async function atualizarStatusPedido(pedidoId: string, status: OrderStatu
     return { error: e instanceof Error ? e.message : "Erro ao atualizar status." }
   }
 
+  await notificarCliente(pedidoId, status)
   revalidar(pedidoId)
   return { success: true }
 }
