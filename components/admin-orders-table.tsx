@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import Link from "next/link"
 import { STATUS_STYLES_ADMIN } from "@/lib/admin-data"
 import type { AdminOrder } from "@/lib/admin-data"
 import type { OrderStatus } from "@/lib/orders"
 import { formatBRL } from "@/lib/products"
 import { atualizarStatusPedido } from "@/app/admin/pedidos/actions"
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, ArrowUpRight } from "lucide-react"
 
 const ALL_STATUSES: { value: OrderStatus | "todos"; label: string }[] = [
   { value: "todos",       label: "Todos"          },
@@ -131,7 +132,13 @@ export function AdminOrdersTable({ orders: initialOrders }: { orders: AdminOrder
                 filtered.map((order) => (
                   <tr key={order.id} className="hover:bg-secondary/50">
                     <td className="px-6 py-4 font-mono text-xs font-semibold text-foreground">
-                      {order.id}
+                      {order.dbId ? (
+                        <Link href={`/admin/pedidos/${order.dbId}`} className="inline-flex items-center gap-1 text-primary hover:underline">
+                          {order.id} <ArrowUpRight className="size-3" />
+                        </Link>
+                      ) : (
+                        order.id
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <p className="font-medium text-foreground">{order.customer}</p>

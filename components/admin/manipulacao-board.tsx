@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { avancarManipulacao } from "@/app/admin/manipulacao/actions"
+import Link from "next/link"
+import { avancarPipeline } from "@/app/admin/pedidos/actions"
 import { formatBRL } from "@/lib/products"
 import { FlaskConical, PackageCheck, Clock } from "lucide-react"
 
@@ -64,7 +65,7 @@ function ManipulacaoCard({ order, podeAtualizar }: { order: ManipulacaoOrder; po
   function despachar() {
     setErro(null)
     startSaving(async () => {
-      const res = await avancarManipulacao(order.id, "despachado")
+      const res = await avancarPipeline(order.id)
       if (res.error) { setErro(res.error); return }
       setDone(true)
     })
@@ -73,7 +74,9 @@ function ManipulacaoCard({ order, podeAtualizar }: { order: ManipulacaoOrder; po
   return (
     <div className={`flex flex-col rounded-2xl border bg-card p-5 transition-opacity ${done ? "border-emerald-200 opacity-60" : "border-border"}`}>
       <div className="flex items-center justify-between">
-        <span className="font-mono text-sm font-bold text-foreground">{order.numero_pedido}</span>
+        <Link href={`/admin/pedidos/${order.id}`} className="font-mono text-sm font-bold text-primary hover:underline">
+          {order.numero_pedido}
+        </Link>
         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
           <Clock className="size-3.5" /> {tempoDecorrido(order.criado_em)}
         </span>

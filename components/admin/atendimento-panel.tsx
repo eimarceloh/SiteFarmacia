@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import Link from "next/link"
-import { atualizarStatusPedido } from "@/app/admin/pedidos/actions"
+import { avancarPipeline } from "@/app/admin/pedidos/actions"
 import { formatBRL } from "@/lib/products"
 import {
   Headphones, FlaskConical, Truck, PackageCheck, ArrowRight, Inbox,
@@ -104,7 +104,7 @@ function NovoPedidoRow({ order }: { order: AtendimentoOrder }) {
   function encaminhar() {
     setErro(null)
     startSaving(async () => {
-      const res = await atualizarStatusPedido(order.id, "manipulacao")
+      const res = await avancarPipeline(order.id)
       if (res.error) { setErro(res.error); return }
       setDone(true)
     })
@@ -114,7 +114,9 @@ function NovoPedidoRow({ order }: { order: AtendimentoOrder }) {
     <div className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card p-4 transition-opacity ${done ? "border-emerald-200 opacity-60" : "border-border"}`}>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-sm font-bold text-foreground">{order.numero_pedido}</span>
+          <Link href={`/admin/pedidos/${order.id}`} className="font-mono text-sm font-bold text-primary hover:underline">
+            {order.numero_pedido}
+          </Link>
           <span className="text-xs text-muted-foreground">· {formatDate(order.criado_em)}</span>
         </div>
         <p className="truncate text-sm text-foreground">{order.nome_cliente}</p>

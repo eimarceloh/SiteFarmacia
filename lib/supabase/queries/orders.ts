@@ -107,6 +107,104 @@ export async function getOrderStatusHistory(db: DB, orderId: string) {
   return data
 }
 
+// Muda o status do pedido E registra o histórico com o executor (criado_por).
+// Fonte única de mudança de status — usada por todas as Server Actions.
+// (o gatilho automático de histórico foi removido na migração 005)
+export async function mudarStatusPedido(
+  db: DB,
+  params: {
+    pedidoId: string
+    novoStatus: OrderStatus
+    rotulo: string
+    criadoPor: string | null
+    observacao?: string
+  },
+): Promise<void> {
+  const { pedidoId, novoStatus, rotulo, criadoPor, observacao } = params
+
+  const { error: upErr } = await db
+    .from("pedidos")
+    .update({ status: novoStatus })
+    .eq("id", pedidoId)
+  if (upErr) throw upErr
+
+  const { error: histErr } = await db.from("historico_pedidos").insert({
+    pedido_id: pedidoId,
+    status: novoStatus,
+    rotulo,
+    observacao: observacao ?? null,
+    criado_por: criadoPor,
+  })
+  if (histErr) throw histErr
+}
+
+export type OrderDetail = {
+  order: OrderWithItems
+  history: Array<{
+    id: string
+    status: string
+    rotulo: string
+    observacao: string | null
+    criado_em: string
+    autor_nome: string | null
+  }>
+  receitaStatus: string | null
+}
+
+// Detalhe completo do pedido para a esteira de produção:
+// pedido + itens + histórico (com nome do executor) + status da receita vinculada.
+export async function getOrderDetail(db: DB, orderId: string): Promise<OrderDetail | null> {
+  const { data: order, error } = await db
+    .from("pedidos")
+    .select("*, itens_pedido(*)")
+    .eq("id", orderId)
+    .single()
+  if (error || !order) return null
+
+  const { data: hist } = await db
+    .from("historico_pedidos")
+    .select("*")
+    .eq("pedido_id", orderId)
+    .order("criado_em", { ascending: true })
+
+  const historico = (hist ?? []) as Array<{
+    id: string; status: string; rotulo: string; observacao: string | null
+    criado_em: string; criado_por: string | null
+  }>
+
+  // Resolve os nomes dos executores (criado_por → clientes.nome_completo)
+  const autorIds = [...new Set(historico.map((h) => h.criado_por).filter(Boolean))] as string[]
+  const nomes = new Map<string, string>()
+  if (autorIds.length > 0) {
+    const { data: autores } = await db
+      .from("clientes")
+      .select("id, nome_completo")
+      .in("id", autorIds)
+    for (const a of (autores ?? []) as Array<{ id: string; nome_completo: string | null }>) {
+      if (a.nome_completo) nomes.set(a.id, a.nome_completo)
+    }
+  }
+
+  const { data: receita } = await db
+    .from("receitas")
+    .select("status")
+    .eq("pedido_id", orderId)
+    .maybeSingle()
+
+  return {
+    order: order as OrderWithItems,
+    history: historico.map((h) => ({
+      id: h.id,
+      status: h.status,
+      rotulo: h.rotulo,
+      observacao: h.observacao,
+      criado_em: h.criado_em,
+      autor_nome: h.criado_por ? nomes.get(h.criado_por) ?? null : null,
+    })),
+    receitaStatus: (receita as { status: string } | null)?.status ?? null,
+  }
+}
+
 // Admin: lista completa de pedidos com itens (para a tabela de gestão)
 export async function getAdminOrders(db: DB): Promise<OrderWithItems[]> {
   const { data, error } = await db
