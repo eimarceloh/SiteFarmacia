@@ -31,6 +31,22 @@ export async function usuarioTemPermissao(chave: PermissaoChave): Promise<boolea
   return !error && data === true
 }
 
+/**
+ * Retorna a lista de permissões (chaves) do usuário logado.
+ * Array vazio se não autenticado ou sem papel.
+ * Útil para montar a navegação/UI condicional em Server Components.
+ */
+export async function minhasPermissoes(): Promise<string[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc("fn_minhas_permissoes")
+  if (error || !Array.isArray(data)) return []
+  return data as string[]
+}
+
 // ── Para Server Components e Server Actions ───────────────────────────────────
 
 /**

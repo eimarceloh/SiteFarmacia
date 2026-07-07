@@ -3,28 +3,34 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { LogoIcon } from "@/components/logo"
-import { LayoutDashboard, ShoppingBag, Package, LogOut, X, Users } from "lucide-react"
+import {
+  LayoutDashboard, ShoppingBag, Package, LogOut, X, Users,
+  Headphones, FileText, FlaskConical,
+} from "lucide-react"
 
-const NAV_BASE = [
-  { href: "/admin",         label: "Dashboard",  icon: LayoutDashboard },
-  { href: "/admin/produtos",label: "Produtos",    icon: Package         },
-  { href: "/admin/pedidos", label: "Pedidos",     icon: ShoppingBag     },
-]
-
-const NAV_ADMIN = [
-  { href: "/admin/equipe",  label: "Equipe",      icon: Users           },
+// perm: undefined = visível para todos que entram no painel.
+// Caso contrário, só aparece se o usuário tiver a permissão.
+const NAV = [
+  { href: "/admin",             label: "Dashboard",   icon: LayoutDashboard, perm: undefined       },
+  { href: "/admin/atendimento", label: "Atendimento", icon: Headphones,      perm: "pedido.ver_todos" },
+  { href: "/admin/receitas",    label: "Receitas",    icon: FileText,        perm: "receita.ver"   },
+  { href: "/admin/manipulacao", label: "Manipulação", icon: FlaskConical,    perm: "manipulacao.ver" },
+  { href: "/admin/produtos",    label: "Produtos",    icon: Package,         perm: "estoque.ver"   },
+  { href: "/admin/pedidos",     label: "Pedidos",     icon: ShoppingBag,     perm: "pedido.ver_todos" },
+  { href: "/admin/equipe",      label: "Equipe",      icon: Users,           perm: "usuario.gerenciar" },
 ]
 
 export function AdminSidebar({
   open,
   onClose,
-  ehAdmin,
+  permissoes = [],
 }: {
   open: boolean
   onClose: () => void
-  ehAdmin?: boolean
+  permissoes?: string[]
 }) {
   const pathname = usePathname()
+  const itens = NAV.filter((n) => !n.perm || permissoes.includes(n.perm))
 
   return (
     <>
@@ -61,7 +67,7 @@ export function AdminSidebar({
 
         {/* Nav */}
         <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-          {[...NAV_BASE, ...(ehAdmin ? NAV_ADMIN : [])].map(({ href, label, icon: Icon }) => {
+          {itens.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || (href !== "/admin" && pathname.startsWith(href))
             return (
               <Link

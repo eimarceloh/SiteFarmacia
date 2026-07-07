@@ -28,6 +28,17 @@ export async function getCustomerPrescriptions(db: DB, customerId: string): Prom
   return data as Prescription[]
 }
 
+// Farmacêutico: todas as receitas (com dados do cliente), mais recentes primeiro
+export async function getAllPrescriptions(db: DB) {
+  const { data, error } = await db
+    .from("receitas")
+    .select("*, clientes(nome_completo, email)")
+    .order("criado_em", { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
 // Admin: receitas pendentes de revisão
 export async function getPendingPrescriptions(db: DB) {
   const { data, error } = await db

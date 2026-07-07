@@ -1,12 +1,15 @@
 import { redirect } from "next/navigation"
 import type { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
-import { usuarioTemPermissao } from "@/lib/rbac/verificar"
+import { minhasPermissoes } from "@/lib/rbac/verificar"
 import { AdminShell } from "@/components/admin-shell"
 
 export const metadata: Metadata = {
   title: { template: "%s | Admin — Farmácia do Povo", default: "Admin — Farmácia do Povo" },
 }
+
+// Qualquer uma destas permissões dá acesso ao painel (cada papel entra pela sua).
+const PERMISSOES_ENTRADA = ["estoque.ver", "pedido.ver_todos", "receita.ver", "manipulacao.ver", "usuario.gerenciar"]
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -14,13 +17,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect("/login")
 
-  // estoque.ver = permissão mínima para entrar no painel (admin + atendente)
-  const [podeEntrar, ehAdmin] = await Promise.all([
-    usuarioTemPermissao("estoque.ver"),
-    usuarioTemPermissao("usuario.gerenciar"),
-  ])
+  const permissoes = await minhasPermissoes()
+  const podeEntrar = PERMISSOES_ENTRADA.some((p) => permissoes.includes(p))
 
   if (!podeEntrar) redirect("/acesso-negado")
 
-  return <AdminShell ehAdmin={ehAdmin}>{children}</AdminShell>
+  return <AdminShell permissoes={permissoes}>{children}</AdminShell>
 }

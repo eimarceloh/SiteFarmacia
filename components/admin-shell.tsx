@@ -4,12 +4,12 @@ import { useState } from "react"
 import { AdminSidebar } from "@/components/admin-sidebar"
 import { Menu } from "lucide-react"
 
-export function AdminShell({ children, ehAdmin }: { children: React.ReactNode; ehAdmin?: boolean }) {
+export function AdminShell({ children, permissoes = [] }: { children: React.ReactNode; permissoes?: string[] }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
     <div className="flex min-h-screen bg-background">
-      <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} ehAdmin={ehAdmin} />
+      <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} permissoes={permissoes} />
 
       <div className="flex flex-1 flex-col min-w-0">
         {/* Top bar mobile */}

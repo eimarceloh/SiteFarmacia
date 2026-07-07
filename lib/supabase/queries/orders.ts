@@ -118,6 +118,18 @@ export async function getAdminOrders(db: DB): Promise<OrderWithItems[]> {
   return (data ?? []) as OrderWithItems[]
 }
 
+// Admin: pedidos por status (fila de manipulação, atendimento, etc.)
+export async function getOrdersByStatus(db: DB, status: OrderStatus): Promise<OrderWithItems[]> {
+  const { data, error } = await db
+    .from("pedidos")
+    .select("*, itens_pedido(*)")
+    .eq("status", status)
+    .order("criado_em", { ascending: true })
+
+  if (error) throw error
+  return (data ?? []) as OrderWithItems[]
+}
+
 // Admin: dados agregados para o dashboard (KPIs, receita semanal, top produtos)
 export async function getDashboardData(db: DB) {
   const orders = await getAdminOrders(db)
