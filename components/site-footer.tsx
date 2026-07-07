@@ -49,10 +49,10 @@ export function SiteFooter() {
             farmacêutica e entrega para todo o Brasil.
           </p>
           <div className="flex gap-2">
-            <a href="#" aria-label="Instagram" className="flex size-10 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-primary hover:text-primary-foreground">
+            <a href="https://instagram.com/farmaciadopovo" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="flex size-10 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-primary hover:text-primary-foreground">
               <AtSign className="size-5" aria-hidden="true" />
             </a>
-            <a href="#" aria-label="WhatsApp" className="flex size-10 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-primary hover:text-primary-foreground">
+            <a href="https://wa.me/551140028922" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className="flex size-10 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-primary hover:text-primary-foreground">
               <MessageCircle className="size-5" aria-hidden="true" />
             </a>
           </div>

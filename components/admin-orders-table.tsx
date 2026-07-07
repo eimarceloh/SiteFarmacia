@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
-import { ADMIN_ORDERS, STATUS_STYLES_ADMIN } from "@/lib/admin-data"
+import { useState, useTransition } from "react"
+import { STATUS_STYLES_ADMIN } from "@/lib/admin-data"
 import type { AdminOrder } from "@/lib/admin-data"
 import type { OrderStatus } from "@/lib/orders"
 import { formatBRL } from "@/lib/products"
+import { atualizarStatusPedido } from "@/app/admin/pedidos/actions"
 import { ChevronDown } from "lucide-react"
 
 const ALL_STATUSES: { value: OrderStatus | "todos"; label: string }[] = [
@@ -32,10 +33,12 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   entregue:    "Entregue",
 }
 
-export function AdminOrdersTable() {
-  const [orders, setOrders] = useState<AdminOrder[]>(ADMIN_ORDERS)
+export function AdminOrdersTable({ orders: initialOrders }: { orders: AdminOrder[] }) {
+  const [orders, setOrders] = useState<AdminOrder[]>(initialOrders)
   const [filter, setFilter] = useState<OrderStatus | "todos">("todos")
   const [search, setSearch] = useState("")
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [, startTransition] = useTransition()
 
   const filtered = orders.filter((o) => {
     const matchStatus = filter === "todos" || o.status === filter
@@ -44,12 +47,30 @@ export function AdminOrdersTable() {
     return matchStatus && matchSearch
   })
 
-  function updateStatus(id: string, status: OrderStatus) {
+  function updateStatus(order: AdminOrder, status: OrderStatus) {
+    const previous = order.status
+    // Atualização otimista
     setOrders((prev) =>
       prev.map((o) =>
-        o.id === id ? { ...o, status, statusLabel: STATUS_LABELS[status] } : o,
+        o.id === order.id ? { ...o, status, statusLabel: STATUS_LABELS[status] } : o,
       ),
     )
+
+    if (!order.dbId) return // pedido sem vínculo no banco (fallback)
+
+    setSavingId(order.id)
+    startTransition(async () => {
+      const res = await atualizarStatusPedido(order.dbId!, status)
+      setSavingId(null)
+      if (res.error) {
+        // Reverte em caso de falha
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === order.id ? { ...o, status: previous, statusLabel: STATUS_LABELS[previous] } : o,
+          ),
+        )
+      }
+    })
   }
 
   return (
@@ -139,8 +160,9 @@ export function AdminOrdersTable() {
                       <div className="relative">
                         <select
                           value={order.status}
-                          onChange={(e) => updateStatus(order.id, e.target.value as OrderStatus)}
-                          className="h-8 appearance-none rounded-lg border border-input bg-background pl-3 pr-7 text-xs outline-none ring-ring focus-visible:ring-2"
+                          disabled={savingId === order.id}
+                          onChange={(e) => updateStatus(order, e.target.value as OrderStatus)}
+                          className="h-8 appearance-none rounded-lg border border-input bg-background pl-3 pr-7 text-xs outline-none ring-ring focus-visible:ring-2 disabled:opacity-50"
                         >
                           {STATUS_OPTIONS.map(({ value, label }) => (
                             <option key={value} value={value}>{label}</option>

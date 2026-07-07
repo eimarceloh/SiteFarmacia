@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useCart } from "@/components/cart-provider"
 import { useInventory, displayPrice, isAvailable } from "@/components/products-inventory-provider"
-import { products, formatBRL } from "@/lib/products"
+import { products, formatBRL, type Product } from "@/lib/products"
 import { ShoppingCart, Star, SearchX } from "lucide-react"
 
 function filterProducts(query: string) {
@@ -18,10 +18,10 @@ function filterProducts(query: string) {
   )
 }
 
-export function SearchResults({ query }: { query: string }) {
+export function SearchResults({ query, dbProducts }: { query: string; dbProducts?: Product[] }) {
   const { addItem } = useCart()
   const { getItem } = useInventory()
-  const results = filterProducts(query)
+  const results = dbProducts ?? filterProducts(query)
 
   if (query.length < 2) {
     return (
@@ -59,10 +59,12 @@ export function SearchResults({ query }: { query: string }) {
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {results.map((p) => {
-          const inv = getItem(p.id)
-          const price = displayPrice(inv)
-          const oldPrice = inv.campaignPrice ? inv.basePrice : p.oldPrice
-          const available = isAvailable(inv)
+          const fromDb = p.estoque !== undefined
+          const inv = fromDb ? null : getItem(p.id)
+          const price = fromDb ? p.price : displayPrice(inv!)
+          const oldPrice = fromDb ? p.oldPrice : (inv!.campaignPrice ? inv!.basePrice : p.oldPrice)
+          const available = fromDb ? (p.ativo !== false && p.estoque! > 0) : isAvailable(inv!)
+          const outOfStock = fromDb ? p.estoque === 0 : inv!.stock === 0
           const discount = oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0
 
           return (
@@ -79,7 +81,7 @@ export function SearchResults({ query }: { query: string }) {
                 </span>
                 {!available && (
                   <span className="absolute right-3 top-3 z-10 rounded-full bg-foreground/80 px-3 py-1 text-xs font-semibold text-background">
-                    {inv.stock === 0 ? "Esgotado" : "Indisponível"}
+                    {outOfStock ? "Esgotado" : "Indisponível"}
                   </span>
                 )}
                 {discount > 0 && available && (
@@ -115,7 +117,7 @@ export function SearchResults({ query }: { query: string }) {
                     </>
                   ) : (
                     <p className="text-sm font-semibold text-muted-foreground">
-                      {inv.stock === 0 ? "Fora de estoque" : "Indisponível"}
+                      {outOfStock ? "Fora de estoque" : "Indisponível"}
                     </p>
                   )}
                 </div>

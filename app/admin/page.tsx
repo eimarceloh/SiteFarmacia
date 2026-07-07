@@ -1,26 +1,41 @@
 import type { Metadata } from "next"
-import { ADMIN_ORDERS, WEEKLY_REVENUE, TOP_PRODUCTS, STATUS_STYLES_ADMIN } from "@/lib/admin-data"
+import { adaptAdminOrder, STATUS_STYLES_ADMIN } from "@/lib/admin-data"
 import { formatBRL } from "@/lib/products"
+import { supabaseAdmin } from "@/lib/supabase/admin"
+import { getDashboardData } from "@/lib/supabase/queries/orders"
 import { TrendingUp, ShoppingBag, Users, Clock } from "lucide-react"
 
 export const metadata: Metadata = { title: "Dashboard" }
+export const dynamic = "force-dynamic"
 
-const totalRevenue = ADMIN_ORDERS.reduce((s, o) => s + o.total, 0)
-const totalOrders = ADMIN_ORDERS.length
-const avgTicket = totalRevenue / totalOrders
-const pending = ADMIN_ORDERS.filter((o) => o.status !== "entregue").length
+export default async function AdminDashboard() {
+  let totalRevenue = 0, totalOrders = 0, avgTicket = 0, pending = 0
+  let weeklyRevenue: { label: string; value: number }[] = []
+  let topProducts: { name: string; sales: number; revenue: number }[] = []
+  let recentOrders: ReturnType<typeof adaptAdminOrder>[] = []
 
-const metrics = [
-  { label: "Receita total",    value: `R$ ${formatBRL(totalRevenue)}`, icon: TrendingUp,  color: "text-emerald-600 bg-emerald-50" },
-  { label: "Total de pedidos", value: String(totalOrders),              icon: ShoppingBag, color: "text-blue-600 bg-blue-50"      },
-  { label: "Ticket médio",     value: `R$ ${formatBRL(avgTicket)}`,     icon: Users,       color: "text-violet-600 bg-violet-50"  },
-  { label: "Aguardando",       value: String(pending),                  icon: Clock,       color: "text-amber-600 bg-amber-50"    },
-]
+  try {
+    const data = await getDashboardData(supabaseAdmin)
+    totalRevenue = data.totalRevenue
+    totalOrders = data.totalOrders
+    avgTicket = data.avgTicket
+    pending = data.pending
+    weeklyRevenue = data.weeklyRevenue
+    topProducts = data.topProducts
+    recentOrders = data.recentOrders.map(adaptAdminOrder)
+  } catch {
+    // Sem dados / Supabase indisponível — mostra zeros
+  }
 
-const maxRevenue = Math.max(...WEEKLY_REVENUE.map((w) => w.value))
-const recentOrders = ADMIN_ORDERS.slice(0, 6)
+  const metrics = [
+    { label: "Receita total",    value: `R$ ${formatBRL(totalRevenue)}`, icon: TrendingUp,  color: "text-emerald-600 bg-emerald-50" },
+    { label: "Total de pedidos", value: String(totalOrders),              icon: ShoppingBag, color: "text-blue-600 bg-blue-50"      },
+    { label: "Ticket médio",     value: `R$ ${formatBRL(avgTicket)}`,     icon: Users,       color: "text-violet-600 bg-violet-50"  },
+    { label: "Aguardando",       value: String(pending),                  icon: Clock,       color: "text-amber-600 bg-amber-50"    },
+  ]
 
-export default function AdminDashboard() {
+  const maxRevenue = Math.max(1, ...weeklyRevenue.map((w) => w.value))
+
   return (
     <div className="flex flex-col gap-8">
       {/* Header */}
@@ -51,7 +66,7 @@ export default function AdminDashboard() {
           <p className="mb-6 text-xs text-muted-foreground">Últimas 8 semanas</p>
 
           <div className="flex items-end gap-2" style={{ height: "160px" }}>
-            {WEEKLY_REVENUE.map(({ label, value }) => {
+            {weeklyRevenue.map(({ label, value }) => {
               const pct = (value / maxRevenue) * 100
               return (
                 <div key={label} className="group relative flex flex-1 flex-col items-center gap-1">
@@ -75,9 +90,12 @@ export default function AdminDashboard() {
           <h2 className="mb-1 font-heading text-base font-bold text-foreground">Top produtos</h2>
           <p className="mb-5 text-xs text-muted-foreground">Por número de vendas</p>
 
+          {topProducts.length === 0 && (
+            <p className="py-6 text-sm text-muted-foreground">Ainda sem vendas registradas.</p>
+          )}
           <ul className="flex flex-col gap-4">
-            {TOP_PRODUCTS.map(({ name, sales, revenue }, i) => {
-              const pct = (sales / TOP_PRODUCTS[0].sales) * 100
+            {topProducts.map(({ name, sales }) => {
+              const pct = (sales / topProducts[0].sales) * 100
               return (
                 <li key={name}>
                   <div className="mb-1 flex items-center justify-between gap-2">
@@ -117,6 +135,13 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
+              {recentOrders.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-10 text-center text-muted-foreground">
+                    Nenhum pedido registrado ainda.
+                  </td>
+                </tr>
+              )}
               {recentOrders.map((order) => (
                 <tr key={order.id} className="hover:bg-secondary/50">
                   <td className="px-6 py-4 font-mono font-semibold text-foreground">{order.id}</td>

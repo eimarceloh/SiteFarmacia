@@ -130,7 +130,7 @@ export function CheckoutForm() {
           <nav className="flex items-center gap-1.5 text-sm text-muted-foreground" aria-label="Etapas">
             <Link href="/" className="hover:text-foreground">Loja</Link>
             <ChevronRight className="size-4" />
-            <Link href="#" className="hover:text-foreground">Carrinho</Link>
+            <Link href="/produtos" className="hover:text-foreground">Produtos</Link>
             <ChevronRight className="size-4" />
             <span className="font-medium text-foreground">Checkout</span>
           </nav>

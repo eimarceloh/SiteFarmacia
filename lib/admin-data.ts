@@ -1,7 +1,9 @@
 import type { OrderStatus } from "@/lib/orders"
+import type { OrderWithItems } from "@/lib/supabase/types"
 
 export type AdminOrder = {
   id: string
+  dbId?: string        // UUID real do pedido no banco (para atualizações)
   customer: string
   email: string
   date: string
@@ -10,6 +12,32 @@ export type AdminOrder = {
   status: OrderStatus
   statusLabel: string
   payment: "cartao" | "pix"
+}
+
+const STATUS_LABELS_ADMIN: Record<string, string> = {
+  confirmado:  "Confirmado",
+  manipulacao: "Em manipulação",
+  despachado:  "Despachado",
+  transito:    "Em trânsito",
+  entregue:    "Entregue",
+  cancelado:   "Cancelado",
+}
+
+// Converte um pedido do banco (OrderWithItems) para o formato da tabela admin
+export function adaptAdminOrder(o: OrderWithItems): AdminOrder {
+  const status = (o.status as OrderStatus)
+  return {
+    id: o.numero_pedido,
+    dbId: o.id,
+    customer: o.nome_cliente,
+    email: o.email_cliente,
+    date: new Date(o.criado_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }),
+    items: (o.itens_pedido ?? []).reduce((s, i) => s + i.quantidade, 0),
+    total: Number(o.total),
+    status,
+    statusLabel: STATUS_LABELS_ADMIN[o.status] ?? o.status,
+    payment: o.forma_pagamento === "pix" ? "pix" : "cartao",
+  }
 }
 
 export const ADMIN_ORDERS: AdminOrder[] = [

@@ -107,6 +107,67 @@ export async function getOrderStatusHistory(db: DB, orderId: string) {
   return data
 }
 
+// Admin: lista completa de pedidos com itens (para a tabela de gestão)
+export async function getAdminOrders(db: DB): Promise<OrderWithItems[]> {
+  const { data, error } = await db
+    .from("pedidos")
+    .select("*, itens_pedido(*)")
+    .order("criado_em", { ascending: false })
+
+  if (error) throw error
+  return (data ?? []) as OrderWithItems[]
+}
+
+// Admin: dados agregados para o dashboard (KPIs, receita semanal, top produtos)
+export async function getDashboardData(db: DB) {
+  const orders = await getAdminOrders(db)
+  const validos = orders.filter((o) => o.status !== "cancelado")
+
+  const totalRevenue = validos.reduce((s, o) => s + Number(o.total), 0)
+  const totalOrders = validos.length
+  const pending = validos.filter((o) => o.status !== "entregue").length
+
+  // Receita das últimas 8 semanas (buckets de 7 dias até hoje)
+  const agora = Date.now()
+  const semana = 7 * 24 * 60 * 60 * 1000
+  const weeklyRevenue = Array.from({ length: 8 }, (_, i) => {
+    const fim = agora - (7 - i) * semana
+    const inicio = fim - semana
+    const value = validos
+      .filter((o) => {
+        const t = new Date(o.criado_em).getTime()
+        return t >= inicio && t < fim
+      })
+      .reduce((s, o) => s + Number(o.total), 0)
+    return {
+      label: new Date(inicio).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+      value,
+    }
+  })
+
+  // Top produtos por número de vendas (soma de quantidade nos itens)
+  const porProduto = new Map<string, { name: string; sales: number; revenue: number }>()
+  for (const o of validos) {
+    for (const item of o.itens_pedido ?? []) {
+      const atual = porProduto.get(item.nome_produto) ?? { name: item.nome_produto, sales: 0, revenue: 0 }
+      atual.sales += item.quantidade
+      atual.revenue += Number(item.preco_total)
+      porProduto.set(item.nome_produto, atual)
+    }
+  }
+  const topProducts = [...porProduto.values()].sort((a, b) => b.sales - a.sales).slice(0, 5)
+
+  return {
+    totalRevenue,
+    totalOrders,
+    avgTicket: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+    pending,
+    weeklyRevenue,
+    topProducts,
+    recentOrders: orders.slice(0, 6),
+  }
+}
+
 // Métricas para o dashboard
 export async function getOrderMetrics(db: DB) {
   const { data, error } = await db

@@ -2,6 +2,11 @@ import type { Metadata } from "next"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
 import { SearchResults } from "@/components/search-results"
+import { createClient } from "@/lib/supabase/server"
+import { searchProducts, adaptDbProduct } from "@/lib/supabase/queries/products"
+import type { Product } from "@/lib/products"
+
+export const dynamic = "force-dynamic"
 
 export async function generateMetadata({
   searchParams,
@@ -22,6 +27,17 @@ export default async function BuscaPage({
   const { q } = await searchParams
   const query = q?.trim() ?? ""
 
+  let dbProducts: Product[] | undefined
+  if (query.length >= 2) {
+    try {
+      const supabase = await createClient()
+      const rows = await searchProducts(supabase, query)
+      dbProducts = rows.map(adaptDbProduct)
+    } catch {
+      // fallback para busca estática no cliente
+    }
+  }
+
   return (
     <main className="min-h-screen bg-background">
       <SiteHeader />
@@ -39,7 +55,7 @@ export default async function BuscaPage({
 
       <section className="bg-background py-12 md:py-16">
         <div className="mx-auto max-w-6xl px-4">
-          <SearchResults query={query} />
+          <SearchResults query={query} dbProducts={dbProducts} />
         </div>
       </section>
 

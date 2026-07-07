@@ -1,14 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
+import { salvarEndereco, excluirEndereco, definirEnderecoPadrao, type EnderecoInput } from "@/app/conta/actions"
 import { STATUS_STYLES } from "@/lib/orders"
 import { formatBRL } from "@/lib/products"
 import {
   Package, User, MapPin, Lock, LogOut, ChevronRight,
   Eye, EyeOff, CheckCircle2, ShoppingBag, Home, LayoutDashboard,
+  Pencil, Trash2, Plus, Star, Loader2, X,
 } from "lucide-react"
 
 type Pedido = {
@@ -207,7 +210,176 @@ function DadosSection({ user }: { user: UserData }) {
 }
 
 /* ── Seção: Endereços ── */
+type FormState = EnderecoInput
+
+const EMPTY_FORM: FormState = {
+  rotulo: "Casa", logradouro: "", numero: "", complemento: "",
+  bairro: "", cidade: "", estado: "", cep: "", padrao: false,
+}
+
+function maskCep(v: string) {
+  return v.replace(/\D/g, "").slice(0, 8).replace(/(\d{5})(\d)/, "$1-$2")
+}
+
+function EnderecoForm({
+  initial,
+  onDone,
+  onCancel,
+}: {
+  initial: FormState
+  onDone: () => void
+  onCancel: () => void
+}) {
+  const [form, setForm] = useState<FormState>(initial)
+  const [erro, setErro] = useState<string | null>(null)
+  const [cepLoading, setCepLoading] = useState(false)
+  const [saving, startSaving] = useTransition()
+
+  const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }))
+
+  async function buscarCep(cepRaw: string) {
+    const cep = cepRaw.replace(/\D/g, "")
+    if (cep.length !== 8) return
+    setCepLoading(true)
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      const data = await res.json()
+      if (!data.erro) {
+        set({
+          logradouro: data.logradouro || form.logradouro,
+          bairro:     data.bairro     || form.bairro,
+          cidade:     data.localidade  || form.cidade,
+          estado:     data.uf          || form.estado,
+        })
+      }
+    } catch {
+      // sem conexão com ViaCEP — usuário preenche manualmente
+    } finally {
+      setCepLoading(false)
+    }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setErro(null)
+    startSaving(async () => {
+      const res = await salvarEndereco(form)
+      if (res.error) { setErro(res.error); return }
+      onDone()
+    })
+  }
+
+  const field = "h-11 w-full rounded-lg border border-input bg-background px-4 text-sm outline-none ring-ring focus-visible:ring-2"
+
+  return (
+    <form onSubmit={handleSubmit} className="rounded-2xl border border-border bg-card p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="font-heading text-lg font-bold text-foreground">
+          {form.id ? "Editar endereço" : "Novo endereço"}
+        </h3>
+        <button type="button" onClick={onCancel} aria-label="Fechar" className="text-muted-foreground hover:text-foreground">
+          <X className="size-5" />
+        </button>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">Rótulo</label>
+          <input value={form.rotulo} onChange={(e) => set({ rotulo: e.target.value })} placeholder="Casa, Trabalho…" className={field} />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-foreground">CEP</label>
+          <div className="relative">
+            <input
+              value={form.cep}
+              onChange={(e) => set({ cep: maskCep(e.target.value) })}
+              onBlur={(e) => buscarCep(e.target.value)}
+              placeholder="00000-000"
+              inputMode="numeric"
+              className={field}
+            />
+            {cepLoading && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
+          </div>
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-foreground">Número</label>
+          <input value={form.numero} onChange={(e) => set({ numero: e.target.value })} className={field} />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">Logradouro</label>
+          <input value={form.logradouro} onChange={(e) => set({ logradouro: e.target.value })} className={field} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">Complemento</label>
+          <input value={form.complemento ?? ""} onChange={(e) => set({ complemento: e.target.value })} placeholder="Apto, bloco… (opcional)" className={field} />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-foreground">Bairro</label>
+          <input value={form.bairro} onChange={(e) => set({ bairro: e.target.value })} className={field} />
+        </div>
+        <div className="grid grid-cols-[1fr_88px] gap-3">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Cidade</label>
+            <input value={form.cidade} onChange={(e) => set({ cidade: e.target.value })} className={field} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">UF</label>
+            <input value={form.estado} onChange={(e) => set({ estado: e.target.value.toUpperCase().slice(0, 2) })} maxLength={2} className={field} />
+          </div>
+        </div>
+      </div>
+
+      <label className="mt-4 flex items-center gap-2 text-sm text-foreground">
+        <input type="checkbox" checked={form.padrao} onChange={(e) => set({ padrao: e.target.checked })} className="size-4 rounded border-input" />
+        Definir como endereço principal
+      </label>
+
+      {erro && <p className="mt-3 text-sm text-destructive">{erro}</p>}
+
+      <div className="mt-5 flex gap-3">
+        <Button type="submit" disabled={saving}>{saving ? "Salvando…" : "Salvar endereço"}</Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>Cancelar</Button>
+      </div>
+    </form>
+  )
+}
+
 function EnderecosSection({ enderecos }: { enderecos: Endereco[] }) {
+  const router = useRouter()
+  const [editing, setEditing] = useState<FormState | null>(null)  // null = form fechado
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [, startAction] = useTransition()
+
+  function refresh() {
+    setEditing(null)
+    router.refresh()
+  }
+
+  function handleExcluir(id: string) {
+    setBusyId(id)
+    startAction(async () => {
+      await excluirEndereco(id)
+      setBusyId(null)
+      router.refresh()
+    })
+  }
+
+  function handlePadrao(id: string) {
+    setBusyId(id)
+    startAction(async () => {
+      await definirEnderecoPadrao(id)
+      setBusyId(null)
+      router.refresh()
+    })
+  }
+
+  if (editing) {
+    return <EnderecoForm initial={editing} onDone={refresh} onCancel={() => setEditing(null)} />
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {enderecos.length === 0 ? (
@@ -220,21 +392,51 @@ function EnderecosSection({ enderecos }: { enderecos: Endereco[] }) {
         enderecos.map((addr) => (
           <div key={addr.id} className="relative rounded-2xl border border-border bg-card p-5">
             {addr.padrao && (
-              <span className="absolute right-4 top-4 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                Principal
+              <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                <Star className="size-3 fill-primary" /> Principal
               </span>
             )}
             <p className="font-semibold text-foreground">{addr.rotulo}</p>
             <p className="mt-1 text-sm text-muted-foreground">
               {addr.logradouro}, {addr.numero}{addr.complemento ? ` — ${addr.complemento}` : ""}<br />
-              {addr.bairro} — {addr.cidade}/{addr.estado} · CEP {addr.cep}
+              {addr.bairro} — {addr.cidade}/{addr.estado} · CEP {maskCep(addr.cep)}
             </p>
-            <button className="mt-3 text-xs font-medium text-primary hover:underline">Editar</button>
+            <div className="mt-3 flex flex-wrap items-center gap-4">
+              <button
+                onClick={() => setEditing({
+                  id: addr.id, rotulo: addr.rotulo, logradouro: addr.logradouro, numero: addr.numero,
+                  complemento: addr.complemento ?? "", bairro: addr.bairro, cidade: addr.cidade,
+                  estado: addr.estado, cep: addr.cep, padrao: addr.padrao,
+                })}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                <Pencil className="size-3.5" /> Editar
+              </button>
+              {!addr.padrao && (
+                <button
+                  onClick={() => handlePadrao(addr.id)}
+                  disabled={busyId === addr.id}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary disabled:opacity-50"
+                >
+                  <Star className="size-3.5" /> Tornar principal
+                </button>
+              )}
+              <button
+                onClick={() => handleExcluir(addr.id)}
+                disabled={busyId === addr.id}
+                className="inline-flex items-center gap-1 text-xs font-medium text-destructive hover:underline disabled:opacity-50"
+              >
+                <Trash2 className="size-3.5" /> Excluir
+              </button>
+            </div>
           </div>
         ))
       )}
-      <button className="rounded-2xl border border-dashed border-border p-5 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-primary">
-        + Adicionar endereço
+      <button
+        onClick={() => setEditing({ ...EMPTY_FORM })}
+        className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border p-5 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+      >
+        <Plus className="size-4" /> Adicionar endereço
       </button>
     </div>
   )
@@ -244,8 +446,26 @@ function EnderecosSection({ enderecos }: { enderecos: Endereco[] }) {
 function SegurancaSection() {
   const [show, setShow] = useState({ atual: false, nova: false, confirma: false })
   const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const [values, setValues] = useState({ atual: "", nova: "", confirma: "" })
 
   const toggle = (field: keyof typeof show) => setShow((s) => ({ ...s, [field]: !s[field] }))
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setErro(null)
+    if (values.nova.length < 6) { setErro("A nova senha deve ter no mínimo 6 caracteres."); return }
+    if (values.nova !== values.confirma) { setErro("As senhas não coincidem."); return }
+
+    setLoading(true)
+    const supabase = createClient()
+    const { error } = await supabase.auth.updateUser({ password: values.nova })
+    setLoading(false)
+    if (error) { setErro(`Erro ao atualizar: ${error.message}`); return }
+    setValues({ atual: "", nova: "", confirma: "" })
+    setSaved(true)
+  }
 
   return saved ? (
     <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-10 text-center">
@@ -256,7 +476,7 @@ function SegurancaSection() {
   ) : (
     <form
       className="rounded-2xl border border-border bg-card p-6"
-      onSubmit={(e) => { e.preventDefault(); setSaved(true) }}
+      onSubmit={handleSubmit}
     >
       <h2 className="mb-5 font-heading text-lg font-bold text-foreground">Alterar senha</h2>
       <div className="flex flex-col gap-4">
@@ -268,7 +488,9 @@ function SegurancaSection() {
               <div className="relative">
                 <input
                   type={show[field] ? "text" : "password"}
-                  required
+                  required={field !== "atual"}
+                  value={values[field]}
+                  onChange={(e) => setValues((v) => ({ ...v, [field]: e.target.value }))}
                   placeholder="••••••••"
                   className="h-11 w-full rounded-lg border border-input bg-background pl-4 pr-11 text-sm outline-none ring-ring focus-visible:ring-2"
                 />
@@ -284,7 +506,10 @@ function SegurancaSection() {
           )
         })}
       </div>
-      <Button type="submit" className="mt-6">Salvar nova senha</Button>
+      {erro && <p className="mt-3 text-sm text-destructive">{erro}</p>}
+      <Button type="submit" className="mt-6" disabled={loading}>
+        {loading ? "Salvando…" : "Salvar nova senha"}
+      </Button>
     </form>
   )
 }
@@ -292,8 +517,16 @@ function SegurancaSection() {
 /* ── Painel principal ── */
 export function AccountPanel({ nome, email, telefone, cpf, pedidos, enderecos, podeAcessarAdmin }: UserData) {
   const [active, setActive] = useState<Section>("pedidos")
+  const router = useRouter()
   const activeSection = NAV.find((n) => n.id === active)!
   const user: UserData = { nome, email, telefone, cpf, pedidos, enderecos }
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push("/")
+    router.refresh()
+  }
 
   const content: Record<Section, React.ReactNode> = {
     pedidos:   <PedidosSection pedidos={pedidos} />,
@@ -342,13 +575,13 @@ export function AccountPanel({ nome, email, telefone, cpf, pedidos, enderecos, p
                 Painel admin
               </Link>
             )}
-            <Link
-              href="/"
-              className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
+            <button
+              onClick={handleLogout}
+              className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
             >
               <LogOut className="size-4 shrink-0" />
               Sair
-            </Link>
+            </button>
           </nav>
         </aside>
 
