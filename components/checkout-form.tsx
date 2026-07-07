@@ -17,6 +17,24 @@ const SHIPPING_COST = 15.9
 
 type PaymentTab = "cartao" | "pix"
 
+export type CheckoutInitial = {
+  nome: string
+  email: string
+  telefone: string
+  cpf: string
+  cep: string
+  logradouro: string
+  numero: string
+  complemento: string
+  bairro: string
+  cidade: string
+  estado: string
+}
+
+function maskCep(v: string) {
+  return v.replace(/\D/g, "").slice(0, 8).replace(/(\d{5})(\d)/, "$1-$2")
+}
+
 const ESTADOS = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
   "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
@@ -45,7 +63,7 @@ function Field({
 const inputClass = (hasIcon = true) =>
   `h-11 w-full rounded-lg border border-input bg-background ${hasIcon ? "pl-10" : "pl-4"} pr-4 text-sm outline-none ring-ring focus-visible:ring-2`
 
-export function CheckoutForm() {
+export function CheckoutForm({ initial }: { initial?: CheckoutInitial }) {
   const router = useRouter()
   const { items, totalPrice, updateQuantity, removeItem, clearCart } = useCart()
   const { deductStock } = useInventory()
@@ -143,6 +161,7 @@ export function CheckoutForm() {
                 <Field id="nome" label="Nome completo" icon={<User className="size-4" />}>
                   <input
                     id="nome" name="nome" type="text" required autoComplete="name"
+                    defaultValue={initial?.nome}
                     placeholder="Como está no seu documento"
                     className={inputClass()}
                   />
@@ -151,6 +170,7 @@ export function CheckoutForm() {
               <Field id="email" label="E-mail" icon={<Mail className="size-4" />}>
                 <input
                   id="email" name="email" type="email" required autoComplete="email"
+                  defaultValue={initial?.email}
                   placeholder="voce@email.com"
                   className={inputClass()}
                 />
@@ -158,6 +178,7 @@ export function CheckoutForm() {
               <Field id="telefone" label="Telefone" icon={<Phone className="size-4" />}>
                 <input
                   id="telefone" name="telefone" type="tel" required autoComplete="tel"
+                  defaultValue={initial?.telefone}
                   placeholder="(11) 99999-9999"
                   className={inputClass()}
                 />
@@ -166,6 +187,7 @@ export function CheckoutForm() {
                 <Field id="cpf" label="CPF" icon={<Lock className="size-4" />}>
                   <input
                     id="cpf" name="cpf" type="text" required
+                    defaultValue={initial?.cpf}
                     placeholder="000.000.000-00"
                     maxLength={14}
                     className={inputClass()}
@@ -182,6 +204,7 @@ export function CheckoutForm() {
               <Field id="cep" label="CEP" icon={<MapPin className="size-4" />}>
                 <input
                   id="cep" name="cep" type="text" required
+                  defaultValue={initial?.cep ? maskCep(initial.cep) : undefined}
                   placeholder="00000-000"
                   maxLength={9}
                   className={inputClass()}
@@ -191,6 +214,7 @@ export function CheckoutForm() {
                 <Field id="logradouro" label="Rua / Avenida">
                   <input
                     id="logradouro" name="logradouro" type="text" required autoComplete="address-line1"
+                    defaultValue={initial?.logradouro}
                     placeholder="Nome da rua"
                     className={inputClass(false)}
                   />
@@ -199,6 +223,7 @@ export function CheckoutForm() {
               <Field id="numero" label="Número">
                 <input
                   id="numero" name="numero" type="text" required
+                  defaultValue={initial?.numero}
                   placeholder="123"
                   className={inputClass(false)}
                 />
@@ -206,6 +231,7 @@ export function CheckoutForm() {
               <Field id="complemento" label="Complemento (opcional)">
                 <input
                   id="complemento" name="complemento" type="text"
+                  defaultValue={initial?.complemento}
                   placeholder="Apto, bloco..."
                   className={inputClass(false)}
                 />
@@ -213,6 +239,7 @@ export function CheckoutForm() {
               <Field id="bairro" label="Bairro">
                 <input
                   id="bairro" name="bairro" type="text" required
+                  defaultValue={initial?.bairro}
                   placeholder="Seu bairro"
                   className={inputClass(false)}
                 />
@@ -220,6 +247,7 @@ export function CheckoutForm() {
               <Field id="cidade" label="Cidade">
                 <input
                   id="cidade" name="cidade" type="text" required autoComplete="address-level2"
+                  defaultValue={initial?.cidade}
                   placeholder="Sua cidade"
                   className={inputClass(false)}
                 />
@@ -230,6 +258,7 @@ export function CheckoutForm() {
                 </label>
                 <select
                   id="estado" name="estado" required
+                  defaultValue={initial?.estado || ""}
                   className="h-11 w-full rounded-lg border border-input bg-background px-4 text-sm outline-none ring-ring focus-visible:ring-2"
                 >
                   <option value="">Selecione</option>
