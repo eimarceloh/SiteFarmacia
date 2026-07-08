@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import { salvarEndereco, excluirEndereco, definirEnderecoPadrao, type EnderecoInput } from "@/app/conta/actions"
+import { salvarCartao, excluirCartao, definirCartaoPadrao } from "@/app/conta/cartoes-actions"
 import { STATUS_STYLES } from "@/lib/orders"
 import { formatBRL } from "@/lib/products"
 import {
   Package, User, MapPin, Lock, LogOut, ChevronRight,
   Eye, EyeOff, CheckCircle2, ShoppingBag, Home, LayoutDashboard,
-  Pencil, Trash2, Plus, Star, Loader2, X,
+  Pencil, Trash2, Plus, Star, Loader2, X, CreditCard, ShieldCheck,
 } from "lucide-react"
 
 type Pedido = {
@@ -37,15 +38,29 @@ type Endereco = {
   padrao: boolean
 }
 
-type Section = "pedidos" | "dados" | "enderecos" | "seguranca"
+type Cartao = {
+  id: string
+  bandeira: string
+  ultimos4: string
+  validade_mes: number
+  validade_ano: number
+  nome_titular: string
+  padrao: boolean
+}
 
-type UserData = { nome: string; email: string; telefone: string; cpf: string; pedidos: Pedido[]; enderecos: Endereco[]; podeAcessarAdmin?: boolean }
+type Section = "pedidos" | "dados" | "enderecos" | "cartoes" | "seguranca"
+
+type UserData = {
+  nome: string; email: string; telefone: string; cpf: string
+  pedidos: Pedido[]; enderecos: Endereco[]; cartoes: Cartao[]; podeAcessarAdmin?: boolean
+}
 
 const NAV: { id: Section; label: string; icon: React.ElementType }[] = [
-  { id: "pedidos",   label: "Meus pedidos",   icon: Package },
-  { id: "dados",     label: "Dados pessoais", icon: User    },
-  { id: "enderecos", label: "Endereços",       icon: MapPin  },
-  { id: "seguranca", label: "Segurança",       icon: Lock    },
+  { id: "pedidos",   label: "Meus pedidos",   icon: Package    },
+  { id: "dados",     label: "Dados pessoais", icon: User       },
+  { id: "enderecos", label: "Endereços",       icon: MapPin     },
+  { id: "cartoes",   label: "Cartões",         icon: CreditCard },
+  { id: "seguranca", label: "Segurança",       icon: Lock       },
 ]
 
 
@@ -442,6 +457,264 @@ function EnderecosSection({ enderecos }: { enderecos: Endereco[] }) {
   )
 }
 
+/* ── Seção: Cartões ── */
+const BANDEIRA_LABEL: Record<string, string> = {
+  visa: "Visa", mastercard: "Mastercard", amex: "Amex", elo: "Elo",
+  hipercard: "Hipercard", diners: "Diners", discover: "Discover", desconhecida: "Cartão",
+}
+
+// Algoritmo de Luhn — validação básica do número no navegador (não é cobrança)
+function luhnValido(num: string): boolean {
+  if (num.length < 13) return false
+  let soma = 0
+  let alt = false
+  for (let i = num.length - 1; i >= 0; i--) {
+    let d = parseInt(num[i], 10)
+    if (alt) { d *= 2; if (d > 9) d -= 9 }
+    soma += d
+    alt = !alt
+  }
+  return soma % 10 === 0
+}
+
+function detectarBandeira(num: string): string {
+  if (/^4/.test(num)) return "visa"
+  if (/^(5[1-5]|2(2[2-9]|[3-6]\d|7[01]|720))/.test(num)) return "mastercard"
+  if (/^3[47]/.test(num)) return "amex"
+  if (/^(606282|3841)/.test(num)) return "hipercard"
+  if (/^(4011|4312|4389|504175|451416|5067|5090|6277|6362|6363|650|6516|6550)/.test(num)) return "elo"
+  if (/^3(0[0-5]|[68])/.test(num)) return "diners"
+  if (/^6(011|5)/.test(num)) return "discover"
+  return "desconhecida"
+}
+
+function maskCard(v: string) {
+  return v.replace(/\D/g, "").slice(0, 19).replace(/(\d{4})(?=\d)/g, "$1 ").trim()
+}
+
+function CartaoForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+  const [numero, setNumero] = useState("")
+  const [validade, setValidade] = useState("")
+  const [cvv, setCvv] = useState("")            // usado só para validação local; NUNCA enviado
+  const [nome, setNome] = useState("")
+  const [padrao, setPadrao] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const [saving, startSaving] = useTransition()
+
+  const digitos = numero.replace(/\D/g, "")
+  const bandeira = detectarBandeira(digitos)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setErro(null)
+
+    if (!luhnValido(digitos)) { setErro("Número de cartão inválido."); return }
+    if (cvv.replace(/\D/g, "").length < 3) { setErro("CVV inválido."); return }
+    const m = validade.match(/^(\d{2})\/(\d{2})$/)
+    if (!m) { setErro("Validade no formato MM/AA."); return }
+    const mes = parseInt(m[1], 10)
+    const ano = 2000 + parseInt(m[2], 10)
+    if (mes < 1 || mes > 12) { setErro("Mês de validade inválido."); return }
+
+    // ⚠️ Deriva apenas dados NÃO sensíveis. O número completo (digitos) e o CVV
+    // permanecem só no navegador e são descartados — nunca vão ao servidor/banco.
+    const ultimos4 = digitos.slice(-4)
+
+    startSaving(async () => {
+      const res = await salvarCartao({
+        bandeira,
+        ultimos4,
+        validade_mes: mes,
+        validade_ano: ano,
+        nome_titular: nome,
+        padrao,
+      })
+      if (res.error) { setErro(res.error); return }
+      onDone()
+    })
+  }
+
+  const field = "h-11 w-full rounded-lg border border-input bg-background px-4 text-sm outline-none ring-ring focus-visible:ring-2"
+
+  return (
+    <form onSubmit={handleSubmit} className="rounded-2xl border border-border bg-card p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="font-heading text-lg font-bold text-foreground">Novo cartão</h3>
+        <button type="button" onClick={onCancel} aria-label="Fechar" className="text-muted-foreground hover:text-foreground">
+          <X className="size-5" />
+        </button>
+      </div>
+
+      <div className="mb-4 flex items-start gap-2 rounded-lg bg-secondary px-3 py-2.5 text-xs text-muted-foreground">
+        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+        Para sua segurança, não guardamos o número completo nem o CVV. Salvamos apenas a
+        bandeira, os 4 últimos dígitos e a validade para identificar o cartão.
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">Número do cartão</label>
+          <div className="relative">
+            <input
+              value={numero}
+              onChange={(e) => setNumero(maskCard(e.target.value))}
+              inputMode="numeric"
+              autoComplete="cc-number"
+              placeholder="0000 0000 0000 0000"
+              className={field}
+            />
+            {digitos.length >= 4 && bandeira !== "desconhecida" && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+                {BANDEIRA_LABEL[bandeira]}
+              </span>
+            )}
+          </div>
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-foreground">Validade</label>
+          <input
+            value={validade}
+            onChange={(e) => {
+              const v = e.target.value.replace(/\D/g, "").slice(0, 4).replace(/(\d{2})(\d)/, "$1/$2")
+              setValidade(v)
+            }}
+            inputMode="numeric"
+            autoComplete="cc-exp"
+            placeholder="MM/AA"
+            className={field}
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-foreground">CVV</label>
+          <input
+            value={cvv}
+            onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            inputMode="numeric"
+            autoComplete="cc-csc"
+            placeholder="000"
+            className={field}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="mb-1.5 block text-sm font-medium text-foreground">Nome do titular</label>
+          <input
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            autoComplete="cc-name"
+            placeholder="Como está impresso no cartão"
+            className={field}
+          />
+        </div>
+      </div>
+
+      <label className="mt-4 flex items-center gap-2 text-sm text-foreground">
+        <input type="checkbox" checked={padrao} onChange={(e) => setPadrao(e.target.checked)} className="size-4 rounded border-input" />
+        Definir como cartão principal
+      </label>
+
+      {erro && <p className="mt-3 text-sm text-destructive">{erro}</p>}
+
+      <div className="mt-5 flex gap-3">
+        <Button type="submit" disabled={saving}>{saving ? "Salvando…" : "Salvar cartão"}</Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>Cancelar</Button>
+      </div>
+    </form>
+  )
+}
+
+function CartoesSection({ cartoes }: { cartoes: Cartao[] }) {
+  const router = useRouter()
+  const [adicionando, setAdicionando] = useState(false)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [, startAction] = useTransition()
+
+  function refresh() {
+    setAdicionando(false)
+    router.refresh()
+  }
+
+  function handleExcluir(id: string) {
+    setBusyId(id)
+    startAction(async () => {
+      await excluirCartao(id)
+      setBusyId(null)
+      router.refresh()
+    })
+  }
+
+  function handlePadrao(id: string) {
+    setBusyId(id)
+    startAction(async () => {
+      await definirCartaoPadrao(id)
+      setBusyId(null)
+      router.refresh()
+    })
+  }
+
+  if (adicionando) {
+    return <CartaoForm onDone={refresh} onCancel={() => setAdicionando(false)} />
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {cartoes.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center">
+          <CreditCard className="size-12 text-muted-foreground/40" />
+          <p className="font-heading font-bold text-foreground">Nenhum cartão salvo</p>
+          <p className="text-sm text-muted-foreground">Salve um cartão para agilizar suas compras.</p>
+        </div>
+      ) : (
+        cartoes.map((c) => (
+          <div key={c.id} className="relative overflow-hidden rounded-2xl border border-border bg-card p-5">
+            {c.padrao && (
+              <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                <Star className="size-3 fill-primary" /> Principal
+              </span>
+            )}
+            <div className="flex items-center gap-3">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <CreditCard className="size-5" />
+              </span>
+              <div>
+                <p className="font-semibold text-foreground">
+                  {BANDEIRA_LABEL[c.bandeira] ?? "Cartão"} •••• {c.ultimos4}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {c.nome_titular} · validade {String(c.validade_mes).padStart(2, "0")}/{String(c.validade_ano).slice(-2)}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-4">
+              {!c.padrao && (
+                <button
+                  onClick={() => handlePadrao(c.id)}
+                  disabled={busyId === c.id}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary disabled:opacity-50"
+                >
+                  <Star className="size-3.5" /> Tornar principal
+                </button>
+              )}
+              <button
+                onClick={() => handleExcluir(c.id)}
+                disabled={busyId === c.id}
+                className="inline-flex items-center gap-1 text-xs font-medium text-destructive hover:underline disabled:opacity-50"
+              >
+                <Trash2 className="size-3.5" /> Remover
+              </button>
+            </div>
+          </div>
+        ))
+      )}
+      <button
+        onClick={() => setAdicionando(true)}
+        className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border p-5 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+      >
+        <Plus className="size-4" /> Adicionar cartão
+      </button>
+    </div>
+  )
+}
+
 /* ── Seção: Segurança ── */
 function SegurancaSection() {
   const [show, setShow] = useState({ atual: false, nova: false, confirma: false })
@@ -515,11 +788,11 @@ function SegurancaSection() {
 }
 
 /* ── Painel principal ── */
-export function AccountPanel({ nome, email, telefone, cpf, pedidos, enderecos, podeAcessarAdmin }: UserData) {
+export function AccountPanel({ nome, email, telefone, cpf, pedidos, enderecos, cartoes, podeAcessarAdmin }: UserData) {
   const [active, setActive] = useState<Section>("pedidos")
   const router = useRouter()
   const activeSection = NAV.find((n) => n.id === active)!
-  const user: UserData = { nome, email, telefone, cpf, pedidos, enderecos }
+  const user: UserData = { nome, email, telefone, cpf, pedidos, enderecos, cartoes }
 
   async function handleLogout() {
     const supabase = createClient()
@@ -532,6 +805,7 @@ export function AccountPanel({ nome, email, telefone, cpf, pedidos, enderecos, p
     pedidos:   <PedidosSection pedidos={pedidos} />,
     dados:     <DadosSection user={user} />,
     enderecos: <EnderecosSection enderecos={enderecos} />,
+    cartoes:   <CartoesSection cartoes={cartoes} />,
     seguranca: <SegurancaSection />,
   }
 

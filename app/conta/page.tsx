@@ -16,7 +16,7 @@ export default async function ContaPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login?redirect=/conta")
 
-  const [{ data: cliente }, { data: pedidos }, { data: enderecos }, podeAcessarAdmin] = await Promise.all([
+  const [{ data: cliente }, { data: pedidos }, { data: enderecos }, { data: cartoes }, podeAcessarAdmin] = await Promise.all([
     supabase
       .from("clientes")
       .select("nome_completo, email, telefone, cpf")
@@ -30,6 +30,11 @@ export default async function ContaPage() {
     supabase
       .from("enderecos")
       .select("id, rotulo, logradouro, numero, complemento, bairro, cidade, estado, cep, padrao")
+      .eq("cliente_id", user.id)
+      .order("padrao", { ascending: false }),
+    supabase
+      .from("cartoes")
+      .select("id, bandeira, ultimos4, validade_mes, validade_ano, nome_titular, padrao")
       .eq("cliente_id", user.id)
       .order("padrao", { ascending: false }),
     usuarioTemPermissao("estoque.ver"),
@@ -47,6 +52,7 @@ export default async function ContaPage() {
         cpf={cliente?.cpf || meta.cpf || ""}
         pedidos={pedidos ?? []}
         enderecos={enderecos ?? []}
+        cartoes={cartoes ?? []}
         podeAcessarAdmin={podeAcessarAdmin}
       />
       <SiteFooter />
