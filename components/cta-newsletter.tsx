@@ -1,36 +1,65 @@
 import { Button } from "@/components/ui/button"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, Gift } from "lucide-react"
 
 export function CtaNewsletter() {
   return (
-    <section className="bg-background pb-16 md:pb-24">
+    <section className="bg-muted pb-16 md:pb-24">
       <div className="mx-auto max-w-6xl px-4">
-        <div className="overflow-hidden rounded-3xl bg-primary px-6 py-12 text-center text-primary-foreground md:px-12 md:py-16">
-          <h2 className="mx-auto max-w-2xl font-heading text-3xl font-bold tracking-tight text-balance md:text-4xl">
-            Ganhe 10% off na primeira compra
-          </h2>
-          <p className="mx-auto mt-3 max-w-xl text-pretty leading-relaxed text-primary-foreground/80">
-            Cadastre seu e-mail e receba ofertas exclusivas, novidades e dicas de
-            saúde dos nossos farmacêuticos.
-          </p>
-          <form className="mx-auto mt-8 flex max-w-md flex-col gap-3 sm:flex-row">
-            <input
-              type="email"
-              required
-              placeholder="Seu melhor e-mail"
-              aria-label="Seu e-mail"
-              className="h-12 w-full rounded-full bg-card px-5 text-sm text-foreground outline-none ring-card focus-visible:ring-2"
-            />
-            <Button
-              type="submit"
-              size="lg"
-              variant="secondary"
-              className="gap-2 rounded-full"
+        <div className="relative overflow-hidden rounded-3xl bg-primary px-6 py-12 md:px-14 md:py-16">
+
+          {/* Elemento decorativo de fundo */}
+          <div
+            className="absolute -right-16 -top-16 size-64 rounded-full bg-white/5"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute -bottom-10 -left-10 size-48 rounded-full bg-white/5"
+            aria-hidden="true"
+          />
+
+          <div className="relative grid gap-8 md:grid-cols-[1fr_auto] md:items-center">
+            <div className="flex flex-col gap-4">
+              {/* Badge */}
+              <div className="flex items-center gap-2 self-start rounded-full bg-white/15 px-4 py-1.5">
+                <Gift className="size-4 text-white" aria-hidden="true" />
+                <span className="text-sm font-semibold text-white">Oferta de boas-vindas</span>
+              </div>
+
+              <h2 className="font-heading text-3xl font-extrabold tracking-tight text-white text-balance md:text-4xl">
+                10% off na sua <span className="underline decoration-white/40 underline-offset-4">primeira compra</span>
+              </h2>
+              <p className="max-w-lg text-pretty leading-relaxed text-white/80">
+                Cadastre seu e-mail e receba o cupom na hora, além de dicas
+                exclusivas de saúde dos nossos farmacêuticos e ofertas antes de
+                todo mundo.
+              </p>
+            </div>
+
+            {/* Formulário */}
+            <form
+              className="flex w-full min-w-0 flex-col gap-3 md:w-80"
+              aria-label="Formulário de newsletter"
             >
-              Quero meu desconto
-              <ArrowRight className="size-4" aria-hidden="true" />
-            </Button>
-          </form>
+              <input
+                type="email"
+                required
+                placeholder="Seu melhor e-mail"
+                aria-label="Seu e-mail"
+                className="h-12 w-full rounded-full bg-white/95 px-5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-white"
+              />
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full gap-2 rounded-full bg-foreground text-background hover:bg-foreground/90"
+              >
+                Quero meu desconto
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </Button>
+              <p className="text-center text-xs text-white/60">
+                Sem spam. Cancele quando quiser.
+              </p>
+            </form>
+          </div>
         </div>
       </div>
     </section>

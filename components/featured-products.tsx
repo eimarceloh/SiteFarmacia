@@ -16,7 +16,7 @@ export function FeaturedProducts({ dbProducts }: { dbProducts?: Product[] }) {
   const lista = dbProducts ?? staticProducts.slice(0, 4)
 
   return (
-    <section id="produtos" className="bg-secondary py-16 md:py-24">
+    <section id="produtos" className="bg-background py-16 md:py-24">
       <div className="mx-auto max-w-6xl px-4">
         <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -47,7 +47,7 @@ export function FeaturedProducts({ dbProducts }: { dbProducts?: Product[] }) {
             return (
               <article
                 key={p.id}
-                className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all hover:-translate-y-1 hover:shadow-lg"
+                className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all hover:-translate-y-1 hover:shadow-xl hover:border-primary/30"
               >
                 <Link href={`/produtos/${p.id}`} className="relative aspect-square block overflow-hidden bg-secondary">
                   <span className="absolute left-3 top-3 z-10 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
@@ -70,9 +70,10 @@ export function FeaturedProducts({ dbProducts }: { dbProducts?: Product[] }) {
                   />
                 </Link>
                 <div className="flex flex-1 flex-col gap-3 p-4">
-                  <div className="flex items-center gap-1 text-sm">
-                    <Star className="size-4 fill-primary text-primary" aria-hidden="true" />
-                    <span className="font-medium text-foreground">{p.rating}</span>
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <Star className="size-4 fill-amber-400 text-amber-400" aria-hidden="true" />
+                    <span className="font-semibold text-foreground">{p.rating}</span>
+                    <span className="text-muted-foreground">(avaliações)</span>
                   </div>
                   <Link href={`/produtos/${p.id}`}>
                     <h3 className="font-heading text-base font-bold leading-snug text-foreground hover:text-primary">
