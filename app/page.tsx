@@ -29,8 +29,8 @@ export default async function Page() {
     <main className="min-h-screen bg-background">
       <SiteHeader />
       <Hero />
-      <TrustBar />
       <Categories />
+      <TrustBar />
       <FeaturedProducts dbProducts={dbProducts} />
       <HowItWorks />
       <QualitySection />
