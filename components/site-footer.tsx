@@ -18,6 +18,7 @@ const columns = [
     links: [
       { label: "Sobre nós",              href: "/sobre" },
       { label: "Nosso laboratório",      href: "/sobre#certificacoes" },
+      { label: "Termos de uso",          href: "/termos-de-uso" },
       { label: "Política de privacidade", href: "/politica-de-privacidade" },
       { label: "Trocas e devoluções",    href: "/contato" },
     ],

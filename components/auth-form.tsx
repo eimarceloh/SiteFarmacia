@@ -424,7 +424,11 @@ function AuthCard({ children }: { children: React.ReactNode }) {
           </div>
 
           <p className="mt-6 text-center text-xs text-muted-foreground text-pretty">
-            Ao continuar, você concorda com os Termos de Uso e a Política de Privacidade da Farmácia do Povo.
+            Ao continuar, você concorda com os{" "}
+            <Link href="/termos-de-uso" className="font-medium text-primary hover:underline">Termos de Uso</Link>
+            {" "}e a{" "}
+            <Link href="/politica-de-privacidade" className="font-medium text-primary hover:underline">Política de Privacidade</Link>
+            {" "}da Farmácia do Povo.
           </p>
         </div>
       </div>
