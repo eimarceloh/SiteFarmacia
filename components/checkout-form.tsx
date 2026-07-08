@@ -7,15 +7,25 @@ import { useCart } from "@/components/cart-provider"
 import { useInventory } from "@/components/products-inventory-provider"
 import { Button } from "@/components/ui/button"
 import { formatBRL } from "@/lib/products"
+import { tokenizarCartao } from "@/lib/pagarme/tokenize"
 import {
   User, Mail, Phone, MapPin, CreditCard, Lock,
   Minus, Plus, Trash2, ChevronRight, ShoppingBag, Check, Loader2,
+  QrCode, Barcode, Copy, CheckCircle2, ExternalLink,
 } from "lucide-react"
 
 const FREE_SHIPPING_THRESHOLD = 199
 const SHIPPING_COST = 15.9
 
-type PaymentTab = "cartao" | "pix"
+type PaymentTab = "cartao" | "pix" | "boleto"
+
+type PagamentoResultado = {
+  numeroPedido: string
+  total: number
+  metodo: string
+  pix?: { qrCode: string; qrCodeUrl: string } | null
+  boleto?: { url: string; linhaDigitavel: string } | null
+}
 
 export type CheckoutInitial = {
   nome: string
@@ -221,6 +231,94 @@ const ESTADOS = [
   "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
 ]
 
+/* ── Painel de resultado PIX / boleto ── */
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const [copiado, setCopiado] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try { await navigator.clipboard.writeText(value); setCopiado(true); setTimeout(() => setCopiado(false), 2000) } catch {}
+      }}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary"
+    >
+      {copiado ? <Check className="size-4 text-primary" /> : <Copy className="size-4" />}
+      {copiado ? "Copiado!" : label}
+    </button>
+  )
+}
+
+function PagamentoResultadoPanel({ resultado }: { resultado: PagamentoResultado }) {
+  const { numeroPedido, total, pix, boleto } = resultado
+
+  return (
+    <div className="mx-auto max-w-lg px-4 py-10 md:py-16">
+      <div className="rounded-2xl border border-border bg-card p-6 text-center md:p-8">
+        <CheckCircle2 className="mx-auto size-12 text-primary" />
+        <h1 className="mt-3 font-heading text-2xl font-extrabold text-foreground">Pedido recebido!</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Pedido <strong className="text-foreground">{numeroPedido}</strong> · R$ {formatBRL(total)}
+        </p>
+
+        {pix && (
+          <div className="mt-6 flex flex-col items-center gap-4">
+            <p className="text-sm font-medium text-foreground">Pague com PIX para confirmar</p>
+            {pix.qrCodeUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={pix.qrCodeUrl} alt="QR Code PIX" className="size-52 rounded-xl border border-border" />
+            )}
+            {pix.qrCode && (
+              <div className="w-full">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">PIX copia e cola</p>
+                <p className="mb-2 break-all rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{pix.qrCode}</p>
+                <CopyButton value={pix.qrCode} label="Copiar código" />
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">Válido por 1 hora. A confirmação é automática após o pagamento.</p>
+          </div>
+        )}
+
+        {boleto && (
+          <div className="mt-6 flex flex-col items-center gap-4">
+            <p className="text-sm font-medium text-foreground">Seu boleto foi gerado</p>
+            {boleto.url && (
+              <a
+                href={boleto.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
+              >
+                <ExternalLink className="size-4" /> Abrir boleto
+              </a>
+            )}
+            {boleto.linhaDigitavel && (
+              <div className="w-full">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Linha digitável</p>
+                <p className="mb-2 break-all rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">{boleto.linhaDigitavel}</p>
+                <CopyButton value={boleto.linhaDigitavel} label="Copiar linha digitável" />
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">Vence em 3 dias. A compensação leva até 2 dias úteis.</p>
+          </div>
+        )}
+
+        <p className="mt-6 rounded-lg bg-secondary px-4 py-3 text-sm text-muted-foreground">
+          Assim que o pagamento for confirmado, avisaremos por e-mail e o pedido entra em preparação.
+        </p>
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <Link href="/conta" className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-center text-sm font-semibold text-primary-foreground hover:opacity-90">
+            Ver meus pedidos
+          </Link>
+          <Link href="/" className="flex-1 rounded-lg border border-border px-4 py-2.5 text-center text-sm font-semibold text-foreground hover:bg-secondary">
+            Voltar à loja
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Field({
   id, label, icon, children,
 }: {
@@ -252,9 +350,22 @@ export function CheckoutForm({ initial, addresses = [] }: { initial?: CheckoutIn
   const [paymentTab, setPaymentTab] = useState<PaymentTab>("cartao")
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [resultado, setResultado] = useState<PagamentoResultado | null>(null)
+
+  // Campos do cartão (controlados; tokenizados no navegador, nunca vão ao backend)
+  const [cardNumero, setCardNumero] = useState("")
+  const [cardNome, setCardNome] = useState("")
+  const [cardValidade, setCardValidade] = useState("")
+  const [cardCvv, setCardCvv] = useState("")
+  const [parcelas, setParcelas] = useState(1)
 
   const shipping = totalPrice >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST
   const total = totalPrice + shipping
+
+  // Pagamento PIX/boleto gerado → mostra as instruções (tem prioridade sobre o carrinho vazio)
+  if (resultado) {
+    return <PagamentoResultadoPanel resultado={resultado} />
+  }
 
   if (items.length === 0) {
     return (
@@ -277,40 +388,66 @@ export function CheckoutForm({ initial, addresses = [] }: { initial?: CheckoutIn
     const get = (key: string) => (fd.get(key) as string) ?? ""
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const payload: any = {
+        nome: get("nome"),
+        email: get("email"),
+        telefone: get("telefone"),
+        cpf: get("cpf"),
+        cep: get("cep"),
+        logradouro: get("logradouro"),
+        numero: get("numero"),
+        complemento: get("complemento"),
+        bairro: get("bairro"),
+        cidade: get("cidade"),
+        estado: get("estado"),
+        forma_pagamento: paymentTab,
+        items: items.map((item) => ({
+          id: item.id, name: item.name, price: item.price, quantity: item.quantity, image: item.image,
+        })),
+      }
+
+      // Cartão: tokeniza no navegador (PAN/CVV nunca vão ao nosso servidor)
+      if (paymentTab === "cartao") {
+        const m = cardValidade.match(/^(\d{2})\/(\d{2})$/)
+        if (!m) throw new Error("Validade do cartão no formato MM/AA.")
+        const token = await tokenizarCartao({
+          numero: cardNumero,
+          nomeTitular: cardNome,
+          mes: parseInt(m[1], 10),
+          ano: 2000 + parseInt(m[2], 10),
+          cvv: cardCvv,
+        })
+        payload.card_token = token
+        payload.parcelas = parcelas
+      }
+
       const res = await fetch("/api/pedidos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nome: get("nome"),
-          email: get("email"),
-          telefone: get("telefone"),
-          cpf: get("cpf"),
-          cep: get("cep"),
-          logradouro: get("logradouro"),
-          numero: get("numero"),
-          complemento: get("complemento"),
-          bairro: get("bairro"),
-          cidade: get("cidade"),
-          estado: get("estado"),
-          forma_pagamento: paymentTab,
-          items: items.map((item) => ({
-            id: item.id,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-            image: item.image,
-          })),
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error ?? "Erro ao processar pedido.")
-      }
+      if (!res.ok) throw new Error(data.error ?? "Erro ao processar pedido.")
 
       items.forEach((item) => deductStock(item.id, item.quantity))
       clearCart()
+
+      // PIX / boleto → mostra QR / boleto (pagamento assíncrono)
+      if (data.pix || data.boleto) {
+        setResultado({
+          numeroPedido: data.numeroPedido,
+          total: data.total,
+          metodo: data.metodo ?? paymentTab,
+          pix: data.pix,
+          boleto: data.boleto,
+        })
+        setSubmitting(false)
+        return
+      }
+
+      // Cartão aprovado (ou sem gateway) → confirmação
       router.push(`/pedido/confirmado?pedido=${data.numeroPedido}&total=${data.total.toFixed(2)}`)
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Ocorreu um erro. Tente novamente.")
@@ -386,19 +523,23 @@ export function CheckoutForm({ initial, addresses = [] }: { initial?: CheckoutIn
             <h2 className="mb-5 font-heading text-lg font-bold text-foreground">Pagamento</h2>
 
             {/* Tabs */}
-            <div className="mb-6 flex gap-3">
-              {(["cartao", "pix"] as const).map((tab) => (
+            <div className="mb-6 grid grid-cols-3 gap-3">
+              {([
+                { id: "cartao", label: "Cartão", icon: CreditCard },
+                { id: "pix",    label: "PIX",    icon: QrCode     },
+                { id: "boleto", label: "Boleto", icon: Barcode    },
+              ] as const).map(({ id, label, icon: Icon }) => (
                 <button
-                  key={tab}
+                  key={id}
                   type="button"
-                  onClick={() => setPaymentTab(tab)}
-                  className={`flex-1 rounded-lg border py-2.5 text-sm font-semibold transition-colors ${
-                    paymentTab === tab
+                  onClick={() => setPaymentTab(id)}
+                  className={`flex items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-semibold transition-colors ${
+                    paymentTab === id
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-border bg-card text-foreground hover:border-primary"
                   }`}
                 >
-                  {tab === "cartao" ? "Cartão de crédito" : "PIX"}
+                  <Icon className="size-4" /> {label}
                 </button>
               ))}
             </div>
@@ -408,9 +549,10 @@ export function CheckoutForm({ initial, addresses = [] }: { initial?: CheckoutIn
                 <div className="sm:col-span-2">
                   <Field id="cartaoNumero" label="Número do cartão" icon={<CreditCard className="size-4" />}>
                     <input
-                      id="cartaoNumero" type="text" required
+                      id="cartaoNumero" type="text" inputMode="numeric" autoComplete="cc-number"
+                      value={cardNumero}
+                      onChange={(e) => setCardNumero(e.target.value.replace(/\D/g, "").slice(0, 19).replace(/(\d{4})(?=\d)/g, "$1 ").trim())}
                       placeholder="0000 0000 0000 0000"
-                      maxLength={19}
                       className={inputClass()}
                     />
                   </Field>
@@ -418,7 +560,9 @@ export function CheckoutForm({ initial, addresses = [] }: { initial?: CheckoutIn
                 <div className="sm:col-span-2">
                   <Field id="cartaoNome" label="Nome impresso no cartão">
                     <input
-                      id="cartaoNome" type="text" required
+                      id="cartaoNome" type="text" autoComplete="cc-name"
+                      value={cardNome}
+                      onChange={(e) => setCardNome(e.target.value)}
                       placeholder="Como está no cartão"
                       className={inputClass(false)}
                     />
@@ -426,17 +570,19 @@ export function CheckoutForm({ initial, addresses = [] }: { initial?: CheckoutIn
                 </div>
                 <Field id="validade" label="Validade">
                   <input
-                    id="validade" type="text" required
+                    id="validade" type="text" inputMode="numeric" autoComplete="cc-exp"
+                    value={cardValidade}
+                    onChange={(e) => setCardValidade(e.target.value.replace(/\D/g, "").slice(0, 4).replace(/(\d{2})(\d)/, "$1/$2"))}
                     placeholder="MM/AA"
-                    maxLength={5}
                     className={inputClass(false)}
                   />
                 </Field>
                 <Field id="cvv" label="CVV">
                   <input
-                    id="cvv" type="text" required
+                    id="cvv" type="text" inputMode="numeric" autoComplete="cc-csc"
+                    value={cardCvv}
+                    onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
                     placeholder="000"
-                    maxLength={4}
                     className={inputClass(false)}
                   />
                 </Field>
@@ -446,6 +592,8 @@ export function CheckoutForm({ initial, addresses = [] }: { initial?: CheckoutIn
                   </label>
                   <select
                     id="parcelas"
+                    value={parcelas}
+                    onChange={(e) => setParcelas(Number(e.target.value))}
                     className="h-11 w-full rounded-lg border border-input bg-background px-4 text-sm outline-none ring-ring focus-visible:ring-2"
                   >
                     {[1, 2, 3, 4, 6, 12].map((n) => (
@@ -459,12 +607,23 @@ export function CheckoutForm({ initial, addresses = [] }: { initial?: CheckoutIn
             )}
 
             {paymentTab === "pix" && (
-              <div className="flex flex-col items-center gap-4 py-4 text-center">
-                <div className="flex size-40 items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary text-muted-foreground text-xs">
-                  QR Code gerado ao confirmar
-                </div>
+              <div className="flex flex-col items-center gap-3 py-4 text-center">
+                <QrCode className="size-12 text-primary" />
                 <p className="text-sm text-muted-foreground">
-                  Após confirmar, o código PIX será gerado e você terá <strong>30 minutos</strong> para pagar.
+                  Ao confirmar, geramos o <strong>QR Code PIX</strong>. Você terá até <strong>1 hora</strong> para pagar.
+                </p>
+                <p className="text-sm font-medium text-foreground">
+                  Total: <span className="text-primary">R$ {formatBRL(total)}</span>
+                </p>
+              </div>
+            )}
+
+            {paymentTab === "boleto" && (
+              <div className="flex flex-col items-center gap-3 py-4 text-center">
+                <Barcode className="size-12 text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  Ao confirmar, geramos o <strong>boleto</strong> com vencimento em <strong>3 dias</strong>.
+                  A compensação leva até 2 dias úteis após o pagamento.
                 </p>
                 <p className="text-sm font-medium text-foreground">
                   Total: <span className="text-primary">R$ {formatBRL(total)}</span>
