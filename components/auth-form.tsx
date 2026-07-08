@@ -415,7 +415,7 @@ function AuthCard({ children }: { children: React.ReactNode }) {
           <Link href="/" className="mb-8 flex items-center justify-center gap-2" aria-label="Farmácia do Povo, página inicial">
             <LogoIcon className="size-10 shrink-0" />
             <span className="font-heading text-2xl font-extrabold tracking-tight text-foreground">
-              Farmácia do Pov<span className="text-primary">+</span>
+              Farmácia do Povo
             </span>
           </Link>
 

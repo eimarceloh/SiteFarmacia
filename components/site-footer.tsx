@@ -42,7 +42,7 @@ export function SiteFooter() {
           <div className="flex items-center gap-2">
             <LogoIcon className="size-10 shrink-0" />
             <span className="font-heading text-lg font-extrabold leading-tight tracking-tight text-foreground">
-              Farmácia do Pov<span className="text-brand-red">+</span>
+              Farmácia do Povo
             </span>
           </div>
           <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
