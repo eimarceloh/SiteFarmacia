@@ -35,7 +35,7 @@ export function OrderTracking({ order }: { order: Order }) {
             <p className="font-heading text-2xl font-extrabold text-foreground">{order.id}</p>
             <p className="mt-1 text-sm text-muted-foreground">Realizado em {order.date}</p>
           </div>
-          <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold ${STATUS_STYLES[order.status]}`}>
+          <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold ${STATUS_STYLES[order.status] ?? "bg-gray-100 text-gray-700 border-gray-200"}`}>
             {order.statusLabel}
           </span>
         </div>
